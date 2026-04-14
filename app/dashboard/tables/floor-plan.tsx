@@ -928,7 +928,6 @@ export function FloorPlan({
         zones={currentZones}
         elements={currentElements}
         tableById={tableById}
-        bookingByTableId={bookingByTableId}
         viewDetailId={viewDetailId}
         onSelectDetail={setViewDetailId}
         onOpenWizard={openWizard}
@@ -2103,7 +2102,6 @@ type ViewModeProps = {
   zones: Zone[]
   elements: FloorElement[]
   tableById: Map<string, RestaurantTable>
-  bookingByTableId: Map<string, TodayBooking>
   viewDetailId: string | null
   onSelectDetail: (id: string | null) => void
   onOpenWizard: () => void
@@ -2128,7 +2126,6 @@ function ViewMode(props: ViewModeProps) {
     zones,
     elements,
     tableById,
-    bookingByTableId,
     viewDetailId,
     onSelectDetail,
     onOpenWizard,
@@ -2137,8 +2134,6 @@ function ViewMode(props: ViewModeProps) {
   } = props
 
   const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
-  const detailBooking = viewDetailId ? bookingByTableId.get(viewDetailId) ?? null : null
-  const detailStatus = statusFromBooking(detailBooking)
 
   return (
     <div>
@@ -2198,13 +2193,11 @@ function ViewMode(props: ViewModeProps) {
           {positions.map((p) => {
             const t = tableById.get(p.table_id)
             if (!t) return null
-            const booking = bookingByTableId.get(p.table_id) ?? null
             return (
               <ViewTableCard
                 key={p.table_id}
                 position={p}
                 table={t}
-                status={statusFromBooking(booking)}
                 cellSize={cellSize}
                 onClick={() => onSelectDetail(p.table_id)}
               />
@@ -2216,43 +2209,11 @@ function ViewMode(props: ViewModeProps) {
       {detailTable && viewDetailId && (
         <StatusPopover
           table={detailTable}
-          status={detailStatus}
           onClose={() => onSelectDetail(null)}
         />
       )}
     </div>
   )
-}
-
-type TableStatus = 'ledig' | 'afventer' | 'optaget'
-
-function statusFromBooking(b: TodayBooking | null): TableStatus {
-  if (!b) return 'ledig'
-  return b.status === 'pending' ? 'afventer' : 'optaget'
-}
-
-const STATUS_META: Record<
-  TableStatus,
-  { label: string; card: string; badge: string; dot: string }
-> = {
-  ledig: {
-    label: 'Ledig',
-    card: 'border-[#e5e7eb] bg-white text-[#111827]',
-    badge: 'bg-[#f3f4f6] text-[#6b7280]',
-    dot: 'bg-[#9ca3af]',
-  },
-  afventer: {
-    label: 'Afventer',
-    card: 'border-[#f59e0b] bg-[#fef3c7] text-[#92400e]',
-    badge: 'bg-[#fffbeb] text-[#b45309]',
-    dot: 'bg-[#f59e0b]',
-  },
-  optaget: {
-    label: 'Optaget',
-    card: 'border-[#10b981] bg-[#d1fae5] text-[#065f46]',
-    badge: 'bg-[#ecfdf5] text-[#047857]',
-    dot: 'bg-[#10b981]',
-  },
 }
 
 // ------------ Grid surface --------------------------------------------
@@ -2797,17 +2758,14 @@ function SetupTableCard({
 function ViewTableCard({
   position,
   table,
-  status,
   cellSize,
   onClick,
 }: {
   position: TablePosition
   table: RestaurantTable
-  status: TableStatus
   cellSize: number
   onClick: () => void
 }) {
-  const meta = STATUS_META[status]
   const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
   const badgeFont = Math.max(7, Math.min(11, cellSize * 0.25))
   const radius = Math.max(4, cellSize * 0.15)
@@ -2820,7 +2778,7 @@ function ViewTableCard({
         e.stopPropagation()
         onClick()
       }}
-      className={`absolute z-30 flex cursor-pointer flex-col overflow-hidden border-2 p-1 transition ${meta.card} ${
+      className={`absolute z-30 flex cursor-pointer flex-col overflow-hidden border-2 border-[#e5e7eb] bg-white p-1 text-[#111827] transition hover:border-[#9ca3af] ${
         tier === 'tiny' ? 'items-center justify-center' : ''
       }`}
       style={{
@@ -2834,7 +2792,7 @@ function ViewTableCard({
       {tier === 'tiny' ? (
         <div className="flex flex-col items-center gap-0.5">
           <span
-            className={`rounded-full ${meta.dot}`}
+            className="rounded-full bg-[#9ca3af]"
             style={{ width: dotSize, height: dotSize }}
             aria-hidden
           />
@@ -2849,23 +2807,20 @@ function ViewTableCard({
               Bord {table.table_number}
             </div>
             <div
-              className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 font-medium text-[#374151]"
+              className="shrink-0 rounded-full bg-[#f3f4f6] px-1.5 py-0.5 font-medium text-[#374151]"
               style={{ fontSize: badgeFont }}
             >
               {table.capacity} pers.
             </div>
           </div>
-          <div className="mt-auto flex items-center gap-1">
+          <div className="mt-auto flex items-center gap-1 text-[#6b7280]">
             <span
-              className={`rounded-full ${meta.dot}`}
+              className="rounded-full bg-[#9ca3af]"
               style={{ width: dotSize, height: dotSize }}
               aria-hidden
             />
-            <span
-              className="font-semibold"
-              style={{ fontSize: badgeFont }}
-            >
-              {meta.label}
+            <span className="font-semibold" style={{ fontSize: badgeFont }}>
+              Ledig
             </span>
           </div>
         </>
@@ -2878,14 +2833,11 @@ function ViewTableCard({
 
 function StatusPopover({
   table,
-  status,
   onClose,
 }: {
   table: RestaurantTable
-  status: TableStatus
   onClose: () => void
 }) {
-  const meta = STATUS_META[status]
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
@@ -2911,10 +2863,8 @@ function StatusPopover({
         <div className="mt-2 flex items-center gap-2 text-sm text-[#6b7280]">
           <span>{table.capacity} pers.</span>
           <span>·</span>
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.badge}`}
-          >
-            {meta.label}
+          <span className="inline-flex items-center rounded-full bg-[#f3f4f6] px-2 py-0.5 text-xs font-medium text-[#6b7280]">
+            Ledig
           </span>
         </div>
       </div>
