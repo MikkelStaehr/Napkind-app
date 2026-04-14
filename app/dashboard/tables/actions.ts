@@ -17,9 +17,12 @@
  *   grid_y integer NOT NULL DEFAULT 0,
  *   width integer NOT NULL DEFAULT 1,
  *   height integer NOT NULL DEFAULT 1,
+ *   rotation integer NOT NULL DEFAULT 0,
  *   label text,
  *   created_at timestamptz DEFAULT now()
  * );
+ * ALTER TABLE restaurant_floor_elements
+ *   ADD COLUMN IF NOT EXISTS rotation integer NOT NULL DEFAULT 0;
  * ALTER TABLE restaurant_floor_elements ENABLE ROW LEVEL SECURITY;
  * -- Policies use get_my_restaurant_ids() — see task spec.
  *
@@ -157,6 +160,7 @@ export type FloorElementInput = {
   grid_y: number
   width: number
   height: number
+  rotation: number
   label: string | null
 }
 
@@ -235,17 +239,22 @@ export async function saveFloorElements(elements: FloorElementInput[]) {
     return
   }
 
-  const rows = elements.map((e) => ({
-    id: e.id,
-    restaurant_id: restaurantId,
-    type: e.type,
-    floor: Math.max(1, Math.floor(e.floor)),
-    grid_x: Math.max(0, Math.floor(e.grid_x)),
-    grid_y: Math.max(0, Math.floor(e.grid_y)),
-    width: Math.max(1, Math.floor(e.width)),
-    height: Math.max(1, Math.floor(e.height)),
-    label: e.label,
-  }))
+  const rows = elements.map((e) => {
+    const rot = ((Math.floor(e.rotation ?? 0) % 360) + 360) % 360
+    const snapped = rot - (rot % 90)
+    return {
+      id: e.id,
+      restaurant_id: restaurantId,
+      type: e.type,
+      floor: Math.max(1, Math.floor(e.floor)),
+      grid_x: Math.max(0, Math.floor(e.grid_x)),
+      grid_y: Math.max(0, Math.floor(e.grid_y)),
+      width: Math.max(1, Math.floor(e.width)),
+      height: Math.max(1, Math.floor(e.height)),
+      rotation: snapped,
+      label: e.label,
+    }
+  })
 
   const { error } = await supabase
     .from('restaurant_floor_elements')

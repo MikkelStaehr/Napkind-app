@@ -97,7 +97,7 @@ export default async function TablesPage() {
 
   const { data: elementRows, error: elementsError } = await supabase
     .from('restaurant_floor_elements')
-    .select('id, type, floor, grid_x, grid_y, width, height, label')
+    .select('id, type, floor, grid_x, grid_y, width, height, rotation, label')
     .eq('restaurant_id', link.restaurant_id)
 
   if (elementsError) {
@@ -116,6 +116,7 @@ export default async function TablesPage() {
     grid_y: (e.grid_y as number | null) ?? 0,
     width: (e.width as number | null) ?? 1,
     height: (e.height as number | null) ?? 1,
+    rotation: (e.rotation as number | null) ?? 0,
     label: (e.label as string | null) ?? null,
   }))
 

@@ -17,12 +17,16 @@ import {
   ChefHat,
   DoorOpen,
   Eraser,
+  Minus,
   Pencil,
   Plus,
+  RotateCw,
   Save,
   Trash2,
   Wine,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import type { RestaurantTable } from '@/app/types/database'
 import {
@@ -65,6 +69,7 @@ export type FloorElement = {
   grid_y: number
   width: number
   height: number
+  rotation: number
   label: string | null
 }
 
@@ -328,6 +333,11 @@ export function FloorPlan({
   const [error, setError] = useState<string | null>(null)
 
   const [containerWidth, setContainerWidth] = useState(800)
+  const [zoom, setZoomRaw] = useState(1)
+  const setZoom = (z: number) => {
+    const clamped = Math.max(0.5, Math.min(2, Math.round(z * 10) / 10))
+    setZoomRaw(clamped)
+  }
   const containerRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const grabOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -517,6 +527,7 @@ export function FloorPlan({
         grid_y: e.grid_y,
         width: e.width,
         height: e.height,
+        rotation: e.rotation,
         label: e.label,
       }))
       await Promise.all([
@@ -533,6 +544,16 @@ export function FloorPlan({
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleRotateSelected = () => {
+    if (!selectedItem || selectedItem.kind !== 'element') return
+    const id = selectedItem.id
+    setLocalElements((prev) => {
+      const cur = prev[id]
+      if (!cur) return prev
+      return { ...prev, [id]: { ...cur, rotation: (cur.rotation + 90) % 360 } }
+    })
   }
 
   const handleDeleteSelected = () => {
@@ -628,7 +649,14 @@ export function FloorPlan({
     )
     setLocalElements((prev) => ({
       ...prev,
-      [id]: { id, type: placementType, floor: currentFloor, ...box, label: null },
+      [id]: {
+        id,
+        type: placementType,
+        floor: currentFloor,
+        ...box,
+        rotation: 0,
+        label: null,
+      },
     }))
     setSelectedItem({ kind: 'element', id })
     setPlacementType(null)
@@ -700,8 +728,9 @@ export function FloorPlan({
     const grid = gridRef.current
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
-    const x = Math.floor((e.clientX - grabOffset.current.x - rect.left) / cellSize)
-    const y = Math.floor((e.clientY - grabOffset.current.y - rect.top) / cellSize)
+    const scaled = cellSize * zoom
+    const x = Math.floor((e.clientX - grabOffset.current.x - rect.left) / scaled)
+    const y = Math.floor((e.clientY - grabOffset.current.y - rect.top) / scaled)
     return { x, y }
   }
 
@@ -794,8 +823,9 @@ export function FloorPlan({
     const startX = e.clientX
     const startY = e.clientY
     const onMove = (ev: PointerEvent) => {
-      const dx = Math.round((ev.clientX - startX) / cellSize)
-      const dy = Math.round((ev.clientY - startY) / cellSize)
+      const scaled = cellSize * zoom
+      const dx = Math.round((ev.clientX - startX) / scaled)
+      const dy = Math.round((ev.clientY - startY) / scaled)
       const box = clampBox(
         { grid_x: startGX, grid_y: startGY, width: startW + dx, height: startH + dy },
         cols,
@@ -853,6 +883,8 @@ export function FloorPlan({
         viewDetailId={viewDetailId}
         onSelectDetail={setViewDetailId}
         onOpenWizard={openWizard}
+        zoom={zoom}
+        setZoom={setZoom}
       />
     )
   }
@@ -939,6 +971,9 @@ export function FloorPlan({
             onGridDrop={handleGridDrop}
             onResizeStart={handleResizeStart}
             onDeleteSelected={handleDeleteSelected}
+            onRotateSelected={handleRotateSelected}
+            zoom={zoom}
+            setZoom={setZoom}
           />
         )}
 
@@ -973,6 +1008,8 @@ export function FloorPlan({
             onGridDrop={handleGridDrop}
             onResizeStart={handleResizeStart}
             onDeleteSelected={handleDeleteSelected}
+            zoom={zoom}
+            setZoom={setZoom}
           />
         )}
 
@@ -1465,6 +1502,9 @@ type Step2Props = {
   onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
   onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
   onDeleteSelected: () => void
+  onRotateSelected: () => void
+  zoom: number
+  setZoom: (z: number) => void
 }
 
 function Step2Elements(props: Step2Props) {
@@ -1501,6 +1541,9 @@ function Step2Elements(props: Step2Props) {
     onGridDrop,
     onResizeStart,
     onDeleteSelected,
+    onRotateSelected,
+    zoom,
+    setZoom,
   } = props
 
   const cursorMode = placementType ? 'place-element' : pendingZone ? 'draw-zone' : 'idle'
@@ -1509,8 +1552,9 @@ function Step2Elements(props: Step2Props) {
     const grid = gridRef.current
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
-    const x = Math.floor((clientX - rect.left) / cellSize)
-    const y = Math.floor((clientY - rect.top) / cellSize)
+    const scaled = cellSize * zoom
+    const x = Math.floor((clientX - rect.left) / scaled)
+    const y = Math.floor((clientY - rect.top) / scaled)
     if (x < 0 || y < 0 || x >= cols || y >= rows) return null
     return { x, y }
   }
@@ -1613,7 +1657,17 @@ function Step2Elements(props: Step2Props) {
             )}
 
             {selectedItem && (
-              <div className="mt-3">
+              <div className="mt-3 space-y-2">
+                {selectedItem.kind === 'element' && (
+                  <button
+                    type="button"
+                    onClick={onRotateSelected}
+                    className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#111827] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
+                  >
+                    <RotateCw size={12} />
+                    Roter
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onDeleteSelected}
@@ -1622,46 +1676,38 @@ function Step2Elements(props: Step2Props) {
                   <Trash2 size={12} />
                   Slet valgte ({selectedItem.kind === 'zone' ? 'zone' : 'element'})
                 </button>
-                <p className="mt-1 text-[10px] text-[#9ca3af]">
-                  (eller tryk Backspace)
+                <p className="text-[10px] text-[#9ca3af]">
+                  (eller tryk Backspace for at slette)
                 </p>
               </div>
             )}
           </div>
         </aside>
 
-        <div
-          ref={containerRef}
-          className="flex-1 rounded-xl border border-[#e5e7eb] bg-white p-3"
-          style={{
-            width: '100%',
-            minWidth: 0,
-            overflowX: 'hidden',
-            overflowY: 'auto',
-            maxHeight: 'calc(100vh - 360px)',
+        <ZoomedScrollGrid
+          containerRef={containerRef}
+          gridRef={gridRef}
+          cols={cols}
+          rows={rows}
+          cellSize={cellSize}
+          gridPxWidth={gridPxWidth}
+          gridPxHeight={gridPxHeight}
+          usable={usable}
+          shapeMode={shapeMode}
+          zoom={zoom}
+          setZoom={setZoom}
+          cursor={cursorMode === 'idle' ? 'default' : 'crosshair'}
+          onPointerDown={onGridPointerDown}
+          onPointerMove={onGridPointerMove}
+          onPointerUp={onGridPointerUp}
+          onDragOver={onGridDragOver}
+          onDrop={onGridDrop}
+          onClick={(e) => {
+            if (cursorMode !== 'idle') return
+            e.stopPropagation()
+            setSelectedItem(null)
           }}
         >
-          <GridSurface
-            gridRef={gridRef}
-            cols={cols}
-            rows={rows}
-            cellSize={cellSize}
-            gridPxWidth={gridPxWidth}
-            gridPxHeight={gridPxHeight}
-            usable={usable}
-            shapeMode={shapeMode}
-            cursor={cursorMode === 'idle' ? 'default' : 'crosshair'}
-            onPointerDown={onGridPointerDown}
-            onPointerMove={onGridPointerMove}
-            onPointerUp={onGridPointerUp}
-            onDragOver={onGridDragOver}
-            onDrop={onGridDrop}
-            onClick={(e) => {
-              if (cursorMode !== 'idle') return
-              e.stopPropagation()
-              setSelectedItem(null)
-            }}
-          >
             {zones.map((z) => (
               <ZoneShape
                 key={z.id}
@@ -1726,8 +1772,7 @@ function Step2Elements(props: Step2Props) {
                 }}
               />
             )}
-          </GridSurface>
-        </div>
+        </ZoomedScrollGrid>
       </div>
 
       {zoneFormOpen && (
@@ -1772,6 +1817,8 @@ type Step3Props = {
   onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
   onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
   onDeleteSelected: () => void
+  zoom: number
+  setZoom: (z: number) => void
 }
 
 function Step3Tables(props: Step3Props) {
@@ -1805,6 +1852,8 @@ function Step3Tables(props: Step3Props) {
     onGridDrop,
     onResizeStart,
     onDeleteSelected,
+    zoom,
+    setZoom,
   } = props
 
   return (
@@ -1861,33 +1910,25 @@ function Step3Tables(props: Step3Props) {
           )}
         </aside>
 
-        <div
-          ref={containerRef}
-          className="flex-1 rounded-xl border border-[#e5e7eb] bg-white p-3"
-          style={{
-            width: '100%',
-            minWidth: 0,
-            overflowX: 'hidden',
-            overflowY: 'auto',
-            maxHeight: 'calc(100vh - 360px)',
+        <ZoomedScrollGrid
+          containerRef={containerRef}
+          gridRef={gridRef}
+          cols={cols}
+          rows={rows}
+          cellSize={cellSize}
+          gridPxWidth={gridPxWidth}
+          gridPxHeight={gridPxHeight}
+          usable={usable}
+          shapeMode={shapeMode}
+          zoom={zoom}
+          setZoom={setZoom}
+          onDragOver={onGridDragOver}
+          onDrop={onGridDrop}
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedItem(null)
           }}
         >
-          <GridSurface
-            gridRef={gridRef}
-            cols={cols}
-            rows={rows}
-            cellSize={cellSize}
-            gridPxWidth={gridPxWidth}
-            gridPxHeight={gridPxHeight}
-            usable={usable}
-            shapeMode={shapeMode}
-            onDragOver={onGridDragOver}
-            onDrop={onGridDrop}
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelectedItem(null)
-            }}
-          >
             {zones.map((z) => (
               <ZoneShape
                 key={z.id}
@@ -1948,8 +1989,7 @@ function Step3Tables(props: Step3Props) {
                 }}
               />
             )}
-          </GridSurface>
-        </div>
+        </ZoomedScrollGrid>
       </div>
     </div>
   )
@@ -1977,6 +2017,8 @@ type ViewModeProps = {
   viewDetailId: string | null
   onSelectDetail: (id: string | null) => void
   onOpenWizard: () => void
+  zoom: number
+  setZoom: (z: number) => void
 }
 
 function ViewMode(props: ViewModeProps) {
@@ -2000,6 +2042,8 @@ function ViewMode(props: ViewModeProps) {
     viewDetailId,
     onSelectDetail,
     onOpenWizard,
+    zoom,
+    setZoom,
   } = props
 
   const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
@@ -2026,18 +2070,9 @@ function ViewMode(props: ViewModeProps) {
         </button>
       </div>
 
-      <div
-        ref={containerRef}
-        className="mt-4 rounded-xl border border-[#e5e7eb] bg-white p-3"
-        style={{
-          width: '100%',
-          minWidth: 0,
-          overflowX: 'hidden',
-          overflowY: 'auto',
-          maxHeight: 'calc(100vh - 320px)',
-        }}
-      >
-        <GridSurface
+      <div className="mt-4">
+        <ZoomedScrollGrid
+          containerRef={containerRef}
           gridRef={gridRef}
           cols={cols}
           rows={rows}
@@ -2046,6 +2081,8 @@ function ViewMode(props: ViewModeProps) {
           gridPxHeight={gridPxHeight}
           usable={usable}
           shapeMode="rect"
+          zoom={zoom}
+          setZoom={setZoom}
         >
           {zones.map((z) => (
             <ZoneShape
@@ -2082,7 +2119,7 @@ function ViewMode(props: ViewModeProps) {
               />
             )
           })}
-        </GridSurface>
+        </ZoomedScrollGrid>
       </div>
 
       {detailTable && viewDetailId && (
@@ -2217,6 +2254,155 @@ function GridSurface({
 }
 
 // ------------ Floor tabs ----------------------------------------------
+
+function ZoomControls({
+  zoom,
+  setZoom,
+}: {
+  zoom: number
+  setZoom: (z: number) => void
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white p-0.5 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setZoom(zoom - 0.1)}
+        disabled={zoom <= 0.5}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] disabled:opacity-40"
+        aria-label="Zoom ud"
+        title="Zoom ud"
+      >
+        <Minus size={14} />
+      </button>
+      <span className="min-w-10 text-center text-[11px] font-medium text-[#111827]">
+        {Math.round(zoom * 100)}%
+      </span>
+      <button
+        type="button"
+        onClick={() => setZoom(zoom + 0.1)}
+        disabled={zoom >= 2}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] disabled:opacity-40"
+        aria-label="Zoom ind"
+        title="Zoom ind"
+      >
+        <Plus size={14} />
+      </button>
+    </div>
+  )
+}
+
+function ZoomedScrollGrid({
+  containerRef,
+  gridRef,
+  cols,
+  rows,
+  cellSize,
+  gridPxWidth,
+  gridPxHeight,
+  usable,
+  shapeMode,
+  zoom,
+  setZoom,
+  cursor,
+  onClick,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onDragOver,
+  onDrop,
+  children,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  gridRef: React.RefObject<HTMLDivElement | null>
+  cols: number
+  rows: number
+  cellSize: number
+  gridPxWidth: number
+  gridPxHeight: number
+  usable: (x: number, y: number) => boolean
+  shapeMode: ShapeMode
+  zoom: number
+  setZoom: (z: number) => void
+  cursor?: 'default' | 'crosshair'
+  onClick?: (e: ReactMouseEvent<HTMLDivElement>) => void
+  onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onDragOver?: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDrop?: (e: ReactDragEvent<HTMLDivElement>) => void
+  children: React.ReactNode
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const step = e.deltaY > 0 ? -0.1 : 0.1
+      setZoom(zoom + step)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [zoom, setZoom])
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative flex-1 rounded-xl border border-[#e5e7eb] bg-white p-3"
+      style={{ width: '100%', minWidth: 0 }}
+    >
+      <div className="absolute right-4 top-4 z-50">
+        <ZoomControls zoom={zoom} setZoom={setZoom} />
+      </div>
+      <div
+        ref={scrollRef}
+        style={{
+          overflow: 'auto',
+          maxHeight: 'calc(100vh - 380px)',
+          width: '100%',
+        }}
+      >
+        <div
+          style={{
+            width: gridPxWidth * zoom,
+            height: gridPxHeight * zoom,
+          }}
+        >
+          <div
+            style={{
+              width: gridPxWidth,
+              height: gridPxHeight,
+              transformOrigin: 'top left',
+              transform: `scale(${zoom})`,
+            }}
+          >
+            <GridSurface
+              gridRef={gridRef}
+              cols={cols}
+              rows={rows}
+              cellSize={cellSize}
+              gridPxWidth={gridPxWidth}
+              gridPxHeight={gridPxHeight}
+              usable={usable}
+              shapeMode={shapeMode}
+              cursor={cursor}
+              onClick={onClick}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+            >
+              {children}
+            </GridSurface>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function FloorTabs({
   floors,
@@ -2367,15 +2553,17 @@ function ElementShape({
   const cfg = ELEMENT_CONFIGS[element.type]
   const Icon = cfg.icon
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
-
   const isWindow = cfg.edgeStripe
+  const rotation = ((element.rotation % 360) + 360) % 360
+  const stripeVertical = isWindow && (rotation === 90 || rotation === 270)
+
   return (
     <div
       draggable={editable}
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`absolute z-20 flex items-center justify-center gap-1 rounded-md transition ${editRing} ${
+      className={`absolute z-20 rounded-md transition ${editRing} ${
         dragging ? 'opacity-50' : ''
       } ${editable ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'}`}
       style={{
@@ -2388,30 +2576,34 @@ function ElementShape({
         color: cfg.textColor,
       }}
     >
-      {isWindow && (
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
-          aria-hidden
-        >
+      <div
+        className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1"
+        style={{
+          transform: isWindow ? undefined : `rotate(${rotation}deg)`,
+          transformOrigin: 'center',
+        }}
+      >
+        {isWindow ? (
           <div
             style={{
-              width: '100%',
-              height: 4,
+              width: stripeVertical ? 4 : '100%',
+              height: stripeVertical ? '100%' : 4,
               backgroundColor: cfg.border,
               borderRadius: 2,
             }}
           />
-        </div>
-      )}
-      {Icon && !isWindow && <Icon size={Math.min(16, cellSize * 0.35)} />}
-      {!isWindow && (
-        <span
-          className="font-semibold"
-          style={{ fontSize: Math.max(9, Math.min(12, cellSize * 0.25)) }}
-        >
-          {element.label ?? cfg.label}
-        </span>
-      )}
+        ) : (
+          <>
+            {Icon && <Icon size={Math.min(16, cellSize * 0.35)} />}
+            <span
+              className="font-semibold"
+              style={{ fontSize: Math.max(9, Math.min(12, cellSize * 0.25)) }}
+            >
+              {element.label ?? cfg.label}
+            </span>
+          </>
+        )}
+      </div>
       {editable && selected && onResizeStart && (
         <div
           onPointerDown={onResizeStart}
