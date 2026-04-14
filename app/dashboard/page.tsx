@@ -77,7 +77,7 @@ export default async function DashboardPage({
     <div className="min-h-full flex-1 bg-[#f9fafb]">
       <header className="border-b border-[#e5e7eb] bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="text-xl font-bold tracking-tight text-[#111827]">
+          <Link href="/dashboard" className="font-logo text-xl tracking-tight text-[#111827]">
             Napkind
           </Link>
           <div className="flex items-center gap-4">

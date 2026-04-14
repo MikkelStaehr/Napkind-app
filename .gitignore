@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# upstream font packages (only woff2 copies in app/fonts are checked in)
+/font/

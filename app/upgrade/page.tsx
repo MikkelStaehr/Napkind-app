@@ -43,7 +43,7 @@ export default async function UpgradePage() {
     <div className="min-h-full flex-1 bg-[#f9fafb]">
       <header className="border-b border-[#e5e7eb] bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-xl font-bold tracking-tight text-[#111827]">
+          <Link href="/" className="font-logo text-xl tracking-tight text-[#111827]">
             Napkind
           </Link>
           <form action={logout}>

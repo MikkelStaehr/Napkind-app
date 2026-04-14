@@ -12,7 +12,7 @@ export default async function LoginPage({
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <Link href="/" className="text-3xl font-bold tracking-tight text-neutral-900">
+          <Link href="/" className="font-logo text-3xl tracking-tight text-neutral-900">
             Napkind
           </Link>
           <p className="mt-2 text-sm text-neutral-600">Log ind på din konto</p>

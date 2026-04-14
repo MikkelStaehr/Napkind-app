@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 bg-white">
       <div className="w-full max-w-xl text-center">
-        <h1 className="text-5xl font-bold tracking-tight text-[#111827]">
+        <h1 className="font-logo text-5xl tracking-tight text-[#111827]">
           Napkind
         </h1>
         <p className="mt-6 text-lg text-[#6b7280]">
