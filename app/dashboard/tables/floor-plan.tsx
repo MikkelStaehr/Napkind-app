@@ -5,35 +5,27 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
   type PointerEvent as ReactPointerEvent,
-  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
+  type DragEvent as ReactDragEvent,
 } from 'react'
 import {
   Accessibility,
   AlertTriangle,
   Check,
+  CheckCircle2,
   ChefHat,
   DoorOpen,
+  Eraser,
   Pencil,
-  Phone,
   Plus,
-  Ruler,
   Save,
   Trash2,
-  Users,
   Wine,
   X,
 } from 'lucide-react'
 import type { RestaurantTable } from '@/app/types/database'
 import {
-  updateBookingStatus,
-  type BookingStatus,
-} from '../bookings/actions'
-import {
-  deleteFloorElement,
-  deleteZone,
   saveFloorElements,
   saveTablePositions,
   saveZones,
@@ -87,58 +79,26 @@ export type TodayBooking = {
   notes: string | null
 }
 
-const DEFAULT_DIMS: Dimensions = { lengthM: 20, widthM: 15, resolution: 0.5 }
+type Resolution = 0.5 | 1
+type ShapeMode = 'rect' | 'draw'
+type WizardStep = 1 | 2 | 3
+type ItemRef = { kind: 'table' | 'zone' | 'element'; id: string }
+
+const DRAW_COLS = 40
+const DRAW_ROWS = 30
+const DRAW_CELL = 20
 const MIN_METERS = 4
 const MAX_METERS = 100
-
-type Resolution = 0.25 | 0.5 | 1
-type Dimensions = { lengthM: number; widthM: number; resolution: Resolution }
-
-function dimsToGrid(d: Dimensions): { cols: number; rows: number } {
-  return {
-    cols: Math.max(1, Math.round(d.lengthM / d.resolution)),
-    rows: Math.max(1, Math.round(d.widthM / d.resolution)),
-  }
-}
-
-function computeCellSize(containerWidth: number, cols: number): number {
-  return Math.max(20, Math.floor(containerWidth / cols))
-}
-
-type ItemKind = 'table' | 'zone' | 'element'
-type ItemRef = { kind: ItemKind; id: string }
+const DRAW_MIN_CELLS = 10
+const MIN_CELL_SIZE = 16
 
 const ZONE_COLORS: Record<ZoneColor, { bg: string; border: string; chip: string }> = {
-  amber: {
-    bg: 'rgba(254, 243, 199, 0.55)',
-    border: '#f59e0b',
-    chip: 'bg-[#f59e0b] text-white',
-  },
-  green: {
-    bg: 'rgba(209, 250, 229, 0.55)',
-    border: '#10b981',
-    chip: 'bg-[#10b981] text-white',
-  },
-  blue: {
-    bg: 'rgba(219, 234, 254, 0.55)',
-    border: '#3b82f6',
-    chip: 'bg-[#3b82f6] text-white',
-  },
-  purple: {
-    bg: 'rgba(237, 233, 254, 0.55)',
-    border: '#8b5cf6',
-    chip: 'bg-[#8b5cf6] text-white',
-  },
-  red: {
-    bg: 'rgba(254, 226, 226, 0.55)',
-    border: '#ef4444',
-    chip: 'bg-[#ef4444] text-white',
-  },
-  gray: {
-    bg: 'rgba(243, 244, 246, 0.75)',
-    border: '#6b7280',
-    chip: 'bg-[#6b7280] text-white',
-  },
+  amber: { bg: 'rgba(254,243,199,0.55)', border: '#f59e0b', chip: 'bg-[#f59e0b] text-white' },
+  green: { bg: 'rgba(209,250,229,0.55)', border: '#10b981', chip: 'bg-[#10b981] text-white' },
+  blue: { bg: 'rgba(219,234,254,0.55)', border: '#3b82f6', chip: 'bg-[#3b82f6] text-white' },
+  purple: { bg: 'rgba(237,233,254,0.55)', border: '#8b5cf6', chip: 'bg-[#8b5cf6] text-white' },
+  red: { bg: 'rgba(254,226,226,0.55)', border: '#ef4444', chip: 'bg-[#ef4444] text-white' },
+  gray: { bg: 'rgba(243,244,246,0.75)', border: '#6b7280', chip: 'bg-[#6b7280] text-white' },
 }
 
 const ZONE_COLOR_OPTIONS: ZoneColor[] = ['amber', 'green', 'blue', 'purple', 'red', 'gray']
@@ -152,6 +112,7 @@ type ElementConfig = {
   borderStyle: 'solid' | 'dashed'
   textColor: string
   icon: typeof ChefHat | null
+  edgeStripe?: boolean
 }
 
 const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
@@ -189,11 +150,12 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     label: 'Vindue',
     menuLabel: '🪟 Vindue',
     defaultSize: { w: 2, h: 1 },
-    bg: '#e0f2fe',
-    border: '#bae6fd',
+    bg: 'transparent',
+    border: '#0ea5e9',
     borderStyle: 'solid',
     textColor: '#075985',
     icon: null,
+    edgeStripe: true,
   },
   wall: {
     label: 'Væg',
@@ -217,6 +179,8 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
   },
 }
 
+const ELEMENT_ORDER: FloorElementType[] = ['door', 'kitchen', 'bar', 'window', 'wall', 'toilet']
+
 function defaultSizeForCapacity(capacity: number): { w: number; h: number } {
   if (capacity <= 2) return { w: 2, h: 2 }
   if (capacity <= 4) return { w: 3, h: 2 }
@@ -236,10 +200,6 @@ function clampBox(
   return { grid_x, grid_y, width, height }
 }
 
-function formatTime(t: string): string {
-  return t.slice(0, 5)
-}
-
 function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -252,17 +212,74 @@ function positionsToMap(list: TablePosition[]): Record<string, TablePosition> {
   for (const p of list) m[p.table_id] = p
   return m
 }
-
 function zonesToMap(list: Zone[]): Record<string, Zone> {
   const m: Record<string, Zone> = {}
   for (const z of list) m[z.id] = z
   return m
 }
-
 function elementsToMap(list: FloorElement[]): Record<string, FloorElement> {
   const m: Record<string, FloorElement> = {}
   for (const e of list) m[e.id] = e
   return m
+}
+
+function cellKey(x: number, y: number): string {
+  return `${x},${y}`
+}
+function parseCellKey(k: string): { x: number; y: number } {
+  const [x, y] = k.split(',').map(Number)
+  return { x, y }
+}
+
+function computeShape(
+  shapeMode: ShapeMode,
+  lengthM: number,
+  widthM: number,
+  resolution: Resolution,
+  activeCells: Set<string>
+): { cols: number; rows: number; usable: (x: number, y: number) => boolean } {
+  if (shapeMode === 'rect') {
+    const cols = Math.max(1, Math.round(lengthM / resolution))
+    const rows = Math.max(1, Math.round(widthM / resolution))
+    return { cols, rows, usable: () => true }
+  }
+  if (activeCells.size === 0) {
+    return { cols: 1, rows: 1, usable: () => false }
+  }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity
+  for (const k of activeCells) {
+    const { x, y } = parseCellKey(k)
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+  }
+  const pad = 2
+  const cols = maxX - minX + 1 + pad * 2
+  const rows = maxY - minY + 1 + pad * 2
+  const usableSet = new Set<string>()
+  for (const k of activeCells) {
+    const { x, y } = parseCellKey(k)
+    usableSet.add(cellKey(x - minX + pad, y - minY + pad))
+  }
+  return {
+    cols,
+    rows,
+    usable: (x, y) => usableSet.has(cellKey(x, y)),
+  }
+}
+
+const STORAGE_KEY_PREFIX = 'napkind_floorplan_'
+
+type PersistedShape = {
+  shapeMode: ShapeMode
+  lengthM: number
+  widthM: number
+  resolution: Resolution
+  activeCells: string[]
 }
 
 export function FloorPlan({
@@ -280,31 +297,39 @@ export function FloorPlan({
   todayBookings: TodayBooking[]
   restaurantId: string
 }) {
-  const [mode, setMode] = useState<'view' | 'edit'>('view')
-  const [dims, setDims] = useState<Dimensions>(DEFAULT_DIMS)
-  const [dimModalOpen, setDimModalOpen] = useState(false)
-  const [currentFloor, setCurrentFloor] = useState(1)
-  const [extraFloors, setExtraFloors] = useState<number[]>([])
+  const hasLayout = positions.length > 0 || zones.length > 0 || elements.length > 0
+  const [mode, setMode] = useState<'view' | 'wizard'>(hasLayout ? 'view' : 'wizard')
+  const [step, setStep] = useState<WizardStep>(1)
+
+  const [shapeMode, setShapeMode] = useState<ShapeMode>('rect')
+  const [lengthM, setLengthM] = useState(20)
+  const [widthM, setWidthM] = useState(15)
+  const [resolution, setResolution] = useState<Resolution>(0.5)
+  const [activeCells, setActiveCells] = useState<Set<string>>(new Set())
+
   const [localPositions, setLocalPositions] = useState(() => positionsToMap(positions))
   const [localZones, setLocalZones] = useState(() => zonesToMap(zones))
   const [localElements, setLocalElements] = useState(() => elementsToMap(elements))
+
+  const [currentFloor, setCurrentFloor] = useState(1)
+  const [extraFloors, setExtraFloors] = useState<number[]>([])
+
   const [selectedItem, setSelectedItem] = useState<ItemRef | null>(null)
-  const [draggedItem, setDraggedItem] = useState<ItemRef | null>(null)
-  const [dragPreview, setDragPreview] = useState<{
-    x: number
-    y: number
-    w: number
-    h: number
-  } | null>(null)
-  const [viewDetailId, setViewDetailId] = useState<string | null>(null)
+  const [placementType, setPlacementType] = useState<FloorElementType | null>(null)
   const [zoneFormOpen, setZoneFormOpen] = useState(false)
-  const [addElementMenuOpen, setAddElementMenuOpen] = useState(false)
+  const [pendingZone, setPendingZone] = useState<{ name: string; priority: number; color: ZoneColor } | null>(null)
+  const [zoneDrawing, setZoneDrawing] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
+
+  const [draggedItem, setDraggedItem] = useState<ItemRef | null>(null)
+  const [dragPreview, setDragPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  const [viewDetailId, setViewDetailId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
 
-  const gridRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(800)
   const containerRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const grabOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -317,57 +342,68 @@ export function FloorPlan({
 
   useEffect(() => {
     const el = containerRef.current
-    if (!el || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
+    if (!el || typeof ResizeObserver === 'undefined') return
     const measure = () => {
       const w = el.clientWidth
       if (w > 0) setContainerWidth(w)
     }
     measure()
-    const ro = new ResizeObserver(() => measure())
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const key = `napkind_floor_dimensions_${restaurantId}`
-    const raw = window.localStorage.getItem(key)
+    const raw = window.localStorage.getItem(STORAGE_KEY_PREFIX + restaurantId)
     if (!raw) return
     try {
-      const parsed = JSON.parse(raw) as Partial<Dimensions>
-      const lengthM = Number(parsed.lengthM)
-      const widthM = Number(parsed.widthM)
-      const resolution = parsed.resolution
+      const parsed = JSON.parse(raw) as Partial<PersistedShape>
+      if (parsed.shapeMode === 'rect' || parsed.shapeMode === 'draw') {
+        setShapeMode(parsed.shapeMode)
+      }
       if (
-        Number.isFinite(lengthM) &&
-        lengthM >= MIN_METERS &&
-        lengthM <= MAX_METERS &&
-        Number.isFinite(widthM) &&
-        widthM >= MIN_METERS &&
-        widthM <= MAX_METERS &&
-        (resolution === 0.25 || resolution === 0.5 || resolution === 1)
+        typeof parsed.lengthM === 'number' &&
+        parsed.lengthM >= MIN_METERS &&
+        parsed.lengthM <= MAX_METERS
       ) {
-        setDims({ lengthM, widthM, resolution })
+        setLengthM(parsed.lengthM)
+      }
+      if (
+        typeof parsed.widthM === 'number' &&
+        parsed.widthM >= MIN_METERS &&
+        parsed.widthM <= MAX_METERS
+      ) {
+        setWidthM(parsed.widthM)
+      }
+      if (parsed.resolution === 0.5 || parsed.resolution === 1) {
+        setResolution(parsed.resolution)
+      }
+      if (Array.isArray(parsed.activeCells)) {
+        setActiveCells(new Set(parsed.activeCells.filter((x) => typeof x === 'string')))
       }
     } catch {}
   }, [restaurantId])
 
-  const { cols, rows } = useMemo(() => dimsToGrid(dims), [dims])
-  const [containerWidth, setContainerWidth] = useState(800)
-  const cellSize = computeCellSize(containerWidth, cols)
+  const persistShape = (next: Partial<PersistedShape>) => {
+    if (typeof window === 'undefined') return
+    const payload: PersistedShape = {
+      shapeMode: next.shapeMode ?? shapeMode,
+      lengthM: next.lengthM ?? lengthM,
+      widthM: next.widthM ?? widthM,
+      resolution: next.resolution ?? resolution,
+      activeCells: next.activeCells ?? Array.from(activeCells),
+    }
+    window.localStorage.setItem(STORAGE_KEY_PREFIX + restaurantId, JSON.stringify(payload))
+  }
+
+  const { cols, rows, usable } = useMemo(
+    () => computeShape(shapeMode, lengthM, widthM, resolution, activeCells),
+    [shapeMode, lengthM, widthM, resolution, activeCells]
+  )
+  const cellSize = Math.max(MIN_CELL_SIZE, Math.floor(containerWidth / cols))
   const gridPxWidth = cols * cellSize
   const gridPxHeight = rows * cellSize
-
-  const handleSaveDims = (newDims: Dimensions) => {
-    setDims(newDims)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(
-        `napkind_floor_dimensions_${restaurantId}`,
-        JSON.stringify(newDims)
-      )
-    }
-    setDimModalOpen(false)
-  }
 
   const tableById = useMemo(() => {
     const m = new Map<string, RestaurantTable>()
@@ -395,8 +431,8 @@ export function FloorPlan({
     return Array.from(set).sort((a, b) => a - b)
   }, [positionsList, zonesList, elementsList, extraFloors, currentFloor])
 
-  const placedOnAnyFloor = new Set(positionsList.map((p) => p.table_id))
-  const unplaced = tables.filter((t) => !placedOnAnyFloor.has(t.id))
+  const placedTableIds = new Set(positionsList.map((p) => p.table_id))
+  const unplaced = tables.filter((t) => !placedTableIds.has(t.id))
 
   const currentPositions = positionsList.filter((p) => p.floor === currentFloor)
   const currentZones = zonesList
@@ -404,28 +440,57 @@ export function FloorPlan({
     .sort((a, b) => a.priority - b.priority)
   const currentElements = elementsList.filter((e) => e.floor === currentFloor)
 
-  const handleEnterEdit = () => {
-    setMode('edit')
+  const openWizard = () => {
+    setMode('wizard')
+    setStep(1)
     setSelectedItem(null)
-    setViewDetailId(null)
+    setPlacementType(null)
     setError(null)
   }
 
-  const handleCancel = () => {
+  const cancelWizard = () => {
     setLocalPositions(positionsToMap(positions))
     setLocalZones(zonesToMap(zones))
     setLocalElements(elementsToMap(elements))
     setExtraFloors([])
     setSelectedItem(null)
+    setPlacementType(null)
+    setZoneFormOpen(false)
+    setPendingZone(null)
     setError(null)
     setMode('view')
+  }
+
+  const step1Valid =
+    shapeMode === 'rect'
+      ? lengthM >= MIN_METERS &&
+        lengthM <= MAX_METERS &&
+        widthM >= MIN_METERS &&
+        widthM <= MAX_METERS
+      : activeCells.size >= DRAW_MIN_CELLS
+
+  const goNext = () => {
+    if (step === 1) {
+      if (!step1Valid) return
+      persistShape({})
+      setStep(2)
+    } else if (step === 2) {
+      setPlacementType(null)
+      setPendingZone(null)
+      setSelectedItem(null)
+      setStep(3)
+    }
+  }
+  const goBack = () => {
+    if (step === 2) setStep(1)
+    else if (step === 3) setStep(2)
   }
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
-      const positionPayload: TablePositionInput[] = Object.values(localPositions).map((p) => ({
+      const posPayload: TablePositionInput[] = positionsList.map((p) => ({
         table_id: p.table_id,
         floor: p.floor,
         grid_x: p.grid_x,
@@ -433,7 +498,7 @@ export function FloorPlan({
         width: p.width,
         height: p.height,
       }))
-      const zonePayload: ZoneInput[] = Object.values(localZones).map((z) => ({
+      const zonePayload: ZoneInput[] = zonesList.map((z) => ({
         id: z.id,
         name: z.name,
         priority: z.priority,
@@ -444,7 +509,7 @@ export function FloorPlan({
         width: z.width,
         height: z.height,
       }))
-      const elementPayload: FloorElementInput[] = Object.values(localElements).map((e) => ({
+      const elPayload: FloorElementInput[] = elementsList.map((e) => ({
         id: e.id,
         type: e.type,
         floor: e.floor,
@@ -454,15 +519,14 @@ export function FloorPlan({
         height: e.height,
         label: e.label,
       }))
-
       await Promise.all([
-        saveTablePositions(positionPayload),
+        saveTablePositions(posPayload),
         saveZones(zonePayload),
-        saveFloorElements(elementPayload),
+        saveFloorElements(elPayload),
       ])
-
-      setExtraFloors([])
+      persistShape({})
       setSelectedItem(null)
+      setExtraFloors([])
       setMode('view')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kunne ikke gemme layout')
@@ -470,6 +534,52 @@ export function FloorPlan({
       setSaving(false)
     }
   }
+
+  const handleDeleteSelected = () => {
+    if (!selectedItem) return
+    const { kind, id } = selectedItem
+    if (kind === 'table') {
+      setLocalPositions((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } else if (kind === 'zone') {
+      setLocalZones((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } else {
+      setLocalElements((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+    setSelectedItem(null)
+  }
+
+  useEffect(() => {
+    if (mode !== 'wizard') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace' && selectedItem) {
+        const target = e.target as HTMLElement | null
+        if (
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable)
+        ) {
+          return
+        }
+        e.preventDefault()
+        handleDeleteSelected()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode, selectedItem])
 
   const handleAddFloor = () => {
     const maxFloor = availableFloors[availableFloors.length - 1] ?? 1
@@ -485,128 +595,84 @@ export function FloorPlan({
       elementsList.some((e) => e.floor === floor)
     if (hasContent) {
       const ok = confirm(
-        `Etage ${floor} indeholder placerede borde, zoner eller elementer. Slet alt indhold på denne etage?`
+        `Etage ${floor} indeholder indhold. Slet alt på denne etage?`
       )
       if (!ok) return
-      setLocalPositions((prev) => {
-        const next: typeof prev = {}
-        for (const [k, v] of Object.entries(prev)) {
+      const removeByFloor = <T extends { floor: number }>(
+        src: Record<string, T>
+      ): Record<string, T> => {
+        const next: Record<string, T> = {}
+        for (const [k, v] of Object.entries(src)) {
           if (v.floor !== floor) next[k] = v
         }
         return next
-      })
-      setLocalZones((prev) => {
-        const next: typeof prev = {}
-        for (const [k, v] of Object.entries(prev)) {
-          if (v.floor !== floor) next[k] = v
-        }
-        return next
-      })
-      setLocalElements((prev) => {
-        const next: typeof prev = {}
-        for (const [k, v] of Object.entries(prev)) {
-          if (v.floor !== floor) next[k] = v
-        }
-        return next
-      })
+      }
+      setLocalPositions((prev) => removeByFloor(prev))
+      setLocalZones((prev) => removeByFloor(prev))
+      setLocalElements((prev) => removeByFloor(prev))
     }
     setExtraFloors((prev) => prev.filter((f) => f !== floor))
-    if (currentFloor === floor) {
-      setCurrentFloor(1)
-    }
+    if (currentFloor === floor) setCurrentFloor(1)
   }
 
-  const handleAddElement = (type: FloorElementType) => {
-    const cfg = ELEMENT_CONFIGS[type]
+  // Step 2 interactions ----------------------------------------------------
+
+  const placeElementAtCell = (cx: number, cy: number) => {
+    if (!placementType) return
+    const cfg = ELEMENT_CONFIGS[placementType]
     const id = newId()
     const box = clampBox(
-      {
-        grid_x: 0,
-        grid_y: 0,
-        width: cfg.defaultSize.w,
-        height: cfg.defaultSize.h,
-      },
+      { grid_x: cx, grid_y: cy, width: cfg.defaultSize.w, height: cfg.defaultSize.h },
       cols,
       rows
     )
-    const el: FloorElement = {
-      id,
-      type,
-      floor: currentFloor,
-      ...box,
-      label: null,
-    }
-    setLocalElements((prev) => ({ ...prev, [id]: el }))
+    setLocalElements((prev) => ({
+      ...prev,
+      [id]: { id, type: placementType, floor: currentFloor, ...box, label: null },
+    }))
     setSelectedItem({ kind: 'element', id })
-    setAddElementMenuOpen(false)
+    setPlacementType(null)
   }
 
-  const handleAddZone = (input: { name: string; priority: number; color: ZoneColor }) => {
+  const beginZoneSubmit = (input: { name: string; priority: number; color: ZoneColor }) => {
+    setPendingZone(input)
+    setZoneFormOpen(false)
+  }
+
+  const finalizeZone = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    if (!pendingZone) return
+    const x1 = Math.min(a.x, b.x)
+    const y1 = Math.min(a.y, b.y)
+    const x2 = Math.max(a.x, b.x)
+    const y2 = Math.max(a.y, b.y)
+    const box = clampBox(
+      { grid_x: x1, grid_y: y1, width: x2 - x1 + 1, height: y2 - y1 + 1 },
+      cols,
+      rows
+    )
     const id = newId()
-    const box = clampBox({ grid_x: 0, grid_y: 0, width: 4, height: 4 }, cols, rows)
     const zone: Zone = {
       id,
-      name: input.name,
-      priority: input.priority,
-      color: input.color,
+      name: pendingZone.name,
+      priority: pendingZone.priority,
+      color: pendingZone.color,
       floor: currentFloor,
       ...box,
     }
     setLocalZones((prev) => ({ ...prev, [id]: zone }))
     setSelectedItem({ kind: 'zone', id })
-    setZoneFormOpen(false)
+    setPendingZone(null)
+    setZoneDrawing(null)
   }
 
-  const handleDeleteSelected = async () => {
-    if (!selectedItem) return
-    const { kind, id } = selectedItem
-    if (kind === 'table') {
-      const ok = confirm('Fjern bordet fra plantegningen?')
-      if (!ok) return
-      setLocalPositions((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      setSelectedItem(null)
-    } else if (kind === 'zone') {
-      const ok = confirm('Slet denne zone?')
-      if (!ok) return
-      setLocalZones((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      try {
-        await deleteZone(id)
-      } catch {
-        // zone may not yet be persisted (new id); ignore
-      }
-      setSelectedItem(null)
-    } else {
-      const ok = confirm('Slet dette element?')
-      if (!ok) return
-      setLocalElements((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      try {
-        await deleteFloorElement(id)
-      } catch {
-        // not persisted yet
-      }
-      setSelectedItem(null)
-    }
-  }
+  // Shared drag/resize -----------------------------------------------------
 
   const getItemSize = (ref: ItemRef): { w: number; h: number } => {
     if (ref.kind === 'table') {
       const pos = localPositions[ref.id]
       if (pos) return { w: pos.width, h: pos.height }
-      const table = tableById.get(ref.id)
-      const cap = table?.capacity ?? 2
-      return defaultSizeForCapacity(cap)
+      const t = tableById.get(ref.id)
+      return defaultSizeForCapacity(t?.capacity ?? 2)
     }
     if (ref.kind === 'zone') {
       const z = localZones[ref.id]
@@ -616,21 +682,15 @@ export function FloorPlan({
     return el ? { w: el.width, h: el.height } : { w: 2, h: 2 }
   }
 
-  const handleDragStart = (
-    ref: ItemRef,
-    e: ReactDragEvent<HTMLDivElement>
-  ) => {
+  const handleItemDragStart = (ref: ItemRef, e: ReactDragEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    grabOffset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    }
+    grabOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
     setDraggedItem(ref)
     e.dataTransfer.setData('text/plain', `${ref.kind}:${ref.id}`)
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDragEnd = () => {
+  const handleItemDragEnd = () => {
     setDraggedItem(null)
     setDragPreview(null)
     grabOffset.current = { x: 0, y: 0 }
@@ -640,17 +700,13 @@ export function FloorPlan({
     const grid = gridRef.current
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
-    const x = Math.floor(
-      (e.clientX - grabOffset.current.x - rect.left) / cellSize
-    )
-    const y = Math.floor(
-      (e.clientY - grabOffset.current.y - rect.top) / cellSize
-    )
+    const x = Math.floor((e.clientX - grabOffset.current.x - rect.left) / cellSize)
+    const y = Math.floor((e.clientY - grabOffset.current.y - rect.top) / cellSize)
     return { x, y }
   }
 
   const handleGridDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
-    if (mode !== 'edit' || !draggedItem) return
+    if (!draggedItem) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const cell = computeDropCell(e)
@@ -662,22 +718,18 @@ export function FloorPlan({
   }
 
   const handleGridDrop = (e: ReactDragEvent<HTMLDivElement>) => {
-    if (mode !== 'edit') return
     e.preventDefault()
     const data = e.dataTransfer.getData('text/plain')
-    const [kindRaw, id] = data.split(':') as [ItemKind, string]
-    const kind = kindRaw as ItemKind
-    if (!id || !['table', 'zone', 'element'].includes(kind)) return
-
+    const [kindRaw, id] = data.split(':') as [ItemRef['kind'], string]
+    if (!id) return
     const cell = computeDropCell(e)
     if (!cell) return
-
-    if (kind === 'table') {
+    if (kindRaw === 'table') {
       const existing = localPositions[id]
-      const table = tableById.get(id)
+      const t = tableById.get(id)
       const size = existing
         ? { w: existing.width, h: existing.height }
-        : defaultSizeForCapacity(table?.capacity ?? 2)
+        : defaultSizeForCapacity(t?.capacity ?? 2)
       const box = clampBox(
         { grid_x: cell.x, grid_y: cell.y, width: size.w, height: size.h },
         cols,
@@ -685,62 +737,38 @@ export function FloorPlan({
       )
       setLocalPositions((prev) => ({
         ...prev,
-        [id]: {
-          table_id: id,
-          floor: currentFloor,
-          ...box,
-        },
+        [id]: { table_id: id, floor: currentFloor, ...box },
       }))
-    } else if (kind === 'zone') {
+    } else if (kindRaw === 'zone') {
       const existing = localZones[id]
       if (!existing) return
       const box = clampBox(
-        {
-          grid_x: cell.x,
-          grid_y: cell.y,
-          width: existing.width,
-          height: existing.height,
-        },
+        { grid_x: cell.x, grid_y: cell.y, width: existing.width, height: existing.height },
         cols,
         rows
       )
-      setLocalZones((prev) => ({
-        ...prev,
-        [id]: { ...existing, ...box },
-      }))
+      setLocalZones((prev) => ({ ...prev, [id]: { ...existing, ...box } }))
     } else {
       const existing = localElements[id]
       if (!existing) return
       const box = clampBox(
-        {
-          grid_x: cell.x,
-          grid_y: cell.y,
-          width: existing.width,
-          height: existing.height,
-        },
+        { grid_x: cell.x, grid_y: cell.y, width: existing.width, height: existing.height },
         cols,
         rows
       )
-      setLocalElements((prev) => ({
-        ...prev,
-        [id]: { ...existing, ...box },
-      }))
+      setLocalElements((prev) => ({ ...prev, [id]: { ...existing, ...box } }))
     }
-
     setDraggedItem(null)
     setDragPreview(null)
   }
 
-  const handleResizeStart = (
-    ref: ItemRef,
-    e: ReactPointerEvent<HTMLDivElement>
-  ) => {
+  const handleResizeStart = (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
-    let startW = 0
-    let startH = 0
-    let startGX = 0
-    let startGY = 0
+    let startW = 0,
+      startH = 0,
+      startGX = 0,
+      startGY = 0
     if (ref.kind === 'table') {
       const p = localPositions[ref.id]
       if (!p) return
@@ -765,17 +793,11 @@ export function FloorPlan({
     }
     const startX = e.clientX
     const startY = e.clientY
-
     const onMove = (ev: PointerEvent) => {
       const dx = Math.round((ev.clientX - startX) / cellSize)
       const dy = Math.round((ev.clientY - startY) / cellSize)
       const box = clampBox(
-        {
-          grid_x: startGX,
-          grid_y: startGY,
-          width: startW + dx,
-          height: startH + dy,
-        },
+        { grid_x: startGX, grid_y: startGY, width: startW + dx, height: startH + dy },
         cols,
         rows
       )
@@ -807,136 +829,806 @@ export function FloorPlan({
     window.addEventListener('pointerup', onUp)
   }
 
-  const handleBookingStatus = (bookingId: string, status: BookingStatus) => {
-    setError(null)
-    startTransition(async () => {
-      try {
-        await updateBookingStatus(bookingId, status)
-        setViewDetailId(null)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke opdatere booking')
-      }
-    })
+  // ------------------------------------------------------------------
+
+  if (mode === 'view') {
+    return (
+      <ViewMode
+        containerRef={containerRef}
+        gridRef={gridRef}
+        cols={cols}
+        rows={rows}
+        cellSize={cellSize}
+        gridPxWidth={gridPxWidth}
+        gridPxHeight={gridPxHeight}
+        usable={usable}
+        availableFloors={availableFloors}
+        currentFloor={currentFloor}
+        onSelectFloor={setCurrentFloor}
+        positions={currentPositions}
+        zones={currentZones}
+        elements={currentElements}
+        tableById={tableById}
+        bookingByTableId={bookingByTableId}
+        viewDetailId={viewDetailId}
+        onSelectDetail={setViewDetailId}
+        onOpenWizard={openWizard}
+      />
+    )
   }
 
-
-  const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
-  const detailBooking = viewDetailId ? bookingByTableId.get(viewDetailId) ?? null : null
-
-  const unplacedMsg = unplaced.length > 0
-    ? `${unplaced.length} ${unplaced.length === 1 ? 'bord er' : 'borde er'} ikke placeret — gå til Rediger layout`
-    : null
-
+  // Wizard mode
   return (
-    <div>
+    <div className="flex flex-col">
       {error && (
         <div className="mb-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#b91c1c]">
           {error}
         </div>
       )}
 
-      <div className="mb-3">
+      <WizardShell
+        step={step}
+        canCancel={hasLayout}
+        onCancel={cancelWizard}
+      >
+        {step === 1 && (
+          <Step1Shape
+            shapeMode={shapeMode}
+            setShapeMode={(m) => {
+              setShapeMode(m)
+              persistShape({ shapeMode: m })
+            }}
+            lengthM={lengthM}
+            setLengthM={(v) => {
+              setLengthM(v)
+              persistShape({ lengthM: v })
+            }}
+            widthM={widthM}
+            setWidthM={(v) => {
+              setWidthM(v)
+              persistShape({ widthM: v })
+            }}
+            resolution={resolution}
+            setResolution={(v) => {
+              setResolution(v)
+              persistShape({ resolution: v })
+            }}
+            activeCells={activeCells}
+            setActiveCells={(next) => {
+              setActiveCells(next)
+              persistShape({ activeCells: Array.from(next) })
+            }}
+          />
+        )}
+
+        {step === 2 && (
+          <Step2Elements
+            containerRef={containerRef}
+            gridRef={gridRef}
+            cols={cols}
+            rows={rows}
+            cellSize={cellSize}
+            gridPxWidth={gridPxWidth}
+            gridPxHeight={gridPxHeight}
+            usable={usable}
+            shapeMode={shapeMode}
+            zones={currentZones}
+            elements={currentElements}
+            selectedItem={selectedItem}
+            setSelectedItem={setSelectedItem}
+            draggedItem={draggedItem}
+            dragPreview={dragPreview}
+            setDragPreview={setDragPreview}
+            placementType={placementType}
+            setPlacementType={setPlacementType}
+            zoneFormOpen={zoneFormOpen}
+            setZoneFormOpen={setZoneFormOpen}
+            pendingZone={pendingZone}
+            zoneDrawing={zoneDrawing}
+            setZoneDrawing={setZoneDrawing}
+            onSubmitZoneForm={beginZoneSubmit}
+            onCancelZoneForm={() => {
+              setPendingZone(null)
+              setZoneFormOpen(false)
+            }}
+            onPlaceElementAtCell={placeElementAtCell}
+            onFinalizeZone={finalizeZone}
+            onItemDragStart={handleItemDragStart}
+            onItemDragEnd={handleItemDragEnd}
+            onGridDragOver={handleGridDragOver}
+            onGridDrop={handleGridDrop}
+            onResizeStart={handleResizeStart}
+            onDeleteSelected={handleDeleteSelected}
+          />
+        )}
+
+        {step === 3 && (
+          <Step3Tables
+            containerRef={containerRef}
+            gridRef={gridRef}
+            cols={cols}
+            rows={rows}
+            cellSize={cellSize}
+            gridPxWidth={gridPxWidth}
+            gridPxHeight={gridPxHeight}
+            usable={usable}
+            shapeMode={shapeMode}
+            zones={currentZones}
+            elements={currentElements}
+            positions={currentPositions}
+            unplacedTables={unplaced}
+            tableById={tableById}
+            availableFloors={availableFloors}
+            currentFloor={currentFloor}
+            onSelectFloor={setCurrentFloor}
+            onAddFloor={handleAddFloor}
+            onDeleteFloor={handleDeleteFloor}
+            selectedItem={selectedItem}
+            setSelectedItem={setSelectedItem}
+            draggedItem={draggedItem}
+            dragPreview={dragPreview}
+            onItemDragStart={handleItemDragStart}
+            onItemDragEnd={handleItemDragEnd}
+            onGridDragOver={handleGridDragOver}
+            onGridDrop={handleGridDrop}
+            onResizeStart={handleResizeStart}
+            onDeleteSelected={handleDeleteSelected}
+          />
+        )}
+
+        <WizardFooter
+          step={step}
+          canNext={step !== 1 || step1Valid}
+          saving={saving}
+          onBack={goBack}
+          onNext={goNext}
+          onSave={handleSave}
+        />
+      </WizardShell>
+    </div>
+  )
+}
+
+// ------------ Wizard shell & footer -----------------------------------
+
+function WizardShell({
+  step,
+  canCancel,
+  onCancel,
+  children,
+}: {
+  step: WizardStep
+  canCancel: boolean
+  onCancel: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-xl border border-[#e5e7eb] bg-white p-5">
+      <div className="flex items-start justify-between gap-4">
+        <Progress step={step} />
+        {canCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
+          >
+            Annuller
+          </button>
+        )}
+      </div>
+      <div className="mt-6">{children}</div>
+    </div>
+  )
+}
+
+function Progress({ step }: { step: WizardStep }) {
+  const steps: { n: WizardStep; label: string }[] = [
+    { n: 1, label: 'Lokalets form' },
+    { n: 2, label: 'Elementer & zoner' },
+    { n: 3, label: 'Borde' },
+  ]
+  return (
+    <ol className="flex flex-wrap items-center gap-3">
+      {steps.map((s, i) => {
+        const completed = step > s.n
+        const active = step === s.n
+        return (
+          <li key={s.n} className="flex items-center gap-2">
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                completed
+                  ? 'bg-[#10b981] text-white'
+                  : active
+                    ? 'bg-[#f59e0b] text-white'
+                    : 'bg-[#f3f4f6] text-[#6b7280]'
+              }`}
+            >
+              {completed ? <CheckCircle2 size={14} /> : s.n}
+            </div>
+            <span
+              className={`text-xs font-medium ${
+                active ? 'text-[#111827]' : completed ? 'text-[#065f46]' : 'text-[#6b7280]'
+              }`}
+            >
+              {s.label}
+            </span>
+            {i < steps.length - 1 && <span className="text-[#d1d5db]">›</span>}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function WizardFooter({
+  step,
+  canNext,
+  saving,
+  onBack,
+  onNext,
+  onSave,
+}: {
+  step: WizardStep
+  canNext: boolean
+  saving: boolean
+  onBack: () => void
+  onNext: () => void
+  onSave: () => void
+}) {
+  return (
+    <div className="mt-6 flex items-center justify-end gap-2 border-t border-[#e5e7eb] pt-4">
+      {step > 1 && (
         <button
           type="button"
-          onClick={() => setDimModalOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
+          onClick={onBack}
+          disabled={saving}
+          className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition disabled:opacity-50"
         >
-          <Ruler size={12} />
-          📐 Lokale: {dims.lengthM} × {dims.widthM} m ({cols}×{rows} celler)
+          Tilbage
+        </button>
+      )}
+      {step < 3 ? (
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canNext}
+          className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
+        >
+          Næste
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
+        >
+          <Save size={14} />
+          {saving ? 'Gemmer…' : 'Gem layout'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ------------ Step 1 --------------------------------------------------
+
+function Step1Shape({
+  shapeMode,
+  setShapeMode,
+  lengthM,
+  setLengthM,
+  widthM,
+  setWidthM,
+  resolution,
+  setResolution,
+  activeCells,
+  setActiveCells,
+}: {
+  shapeMode: ShapeMode
+  setShapeMode: (m: ShapeMode) => void
+  lengthM: number
+  setLengthM: (v: number) => void
+  widthM: number
+  setWidthM: (v: number) => void
+  resolution: Resolution
+  setResolution: (v: Resolution) => void
+  activeCells: Set<string>
+  setActiveCells: (s: Set<string>) => void
+}) {
+  return (
+    <div>
+      <h2 className="text-base font-semibold text-[#111827]">
+        Hvordan ser dit lokale ud?
+      </h2>
+      <p className="mt-1 text-xs text-[#6b7280]">
+        Vælg rektangel hvis lokalet er firkantet, eller tegn det selv for
+        uregelmæssige rum.
+      </p>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ShapeCard
+          title="Rektangulært lokale"
+          description="Indtast længde og bredde i meter."
+          active={shapeMode === 'rect'}
+          onSelect={() => setShapeMode('rect')}
+        >
+          <RectForm
+            lengthM={lengthM}
+            setLengthM={setLengthM}
+            widthM={widthM}
+            setWidthM={setWidthM}
+            resolution={resolution}
+            setResolution={setResolution}
+            disabled={shapeMode !== 'rect'}
+          />
+        </ShapeCard>
+
+        <ShapeCard
+          title="Tegn selv"
+          description="Klik og træk for at markere lokalets gulv."
+          active={shapeMode === 'draw'}
+          onSelect={() => setShapeMode('draw')}
+        >
+          <DrawCanvas
+            activeCells={activeCells}
+            setActiveCells={setActiveCells}
+            disabled={shapeMode !== 'draw'}
+          />
+        </ShapeCard>
+      </div>
+    </div>
+  )
+}
+
+function ShapeCard({
+  title,
+  description,
+  active,
+  onSelect,
+  children,
+}: {
+  title: string
+  description: string
+  active: boolean
+  onSelect: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`cursor-pointer rounded-xl border-2 p-4 transition ${
+        active ? 'border-[#f59e0b] bg-[#fffbeb]/50' : 'border-[#e5e7eb] bg-white opacity-70 hover:opacity-100'
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <div
+          className={`mt-0.5 h-4 w-4 rounded-full border-2 ${
+            active ? 'border-[#f59e0b] bg-[#f59e0b]' : 'border-[#d1d5db] bg-white'
+          }`}
+        />
+        <div>
+          <h3 className="text-sm font-semibold text-[#111827]">{title}</h3>
+          <p className="mt-0.5 text-xs text-[#6b7280]">{description}</p>
+        </div>
+      </div>
+      <div className="mt-4">{children}</div>
+    </div>
+  )
+}
+
+function RectForm({
+  lengthM,
+  setLengthM,
+  widthM,
+  setWidthM,
+  resolution,
+  setResolution,
+  disabled,
+}: {
+  lengthM: number
+  setLengthM: (v: number) => void
+  widthM: number
+  setWidthM: (v: number) => void
+  resolution: Resolution
+  setResolution: (v: Resolution) => void
+  disabled: boolean
+}) {
+  const cols = Math.max(1, Math.round(lengthM / resolution))
+  const rows = Math.max(1, Math.round(widthM / resolution))
+  const inputClass =
+    'w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b] disabled:bg-[#f9fafb] disabled:opacity-60'
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Længde (m)</span>
+          <input
+            type="number"
+            min={MIN_METERS}
+            max={MAX_METERS}
+            step="0.5"
+            value={lengthM}
+            onChange={(e) => setLengthM(Number(e.target.value))}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Bredde (m)</span>
+          <input
+            type="number"
+            min={MIN_METERS}
+            max={MAX_METERS}
+            step="0.5"
+            value={widthM}
+            onChange={(e) => setWidthM(Number(e.target.value))}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Opløsning</span>
+        <select
+          value={resolution}
+          onChange={(e) => setResolution(Number(e.target.value) as Resolution)}
+          disabled={disabled}
+          className={inputClass}
+        >
+          <option value={1}>Lav (1 m/celle)</option>
+          <option value={0.5}>Høj (0,5 m/celle)</option>
+        </select>
+      </label>
+      <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
+        Dit grid bliver <strong className="text-[#111827]">{cols} × {rows}</strong> celler
+      </div>
+    </div>
+  )
+}
+
+function DrawCanvas({
+  activeCells,
+  setActiveCells,
+  disabled,
+}: {
+  activeCells: Set<string>
+  setActiveCells: (s: Set<string>) => void
+  disabled: boolean
+}) {
+  const [brushSize, setBrushSize] = useState<1 | 2>(1)
+  const paintingRef = useRef<'add' | 'remove' | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+
+  const applyBrush = (cx: number, cy: number, mode: 'add' | 'remove') => {
+    const next = new Set(activeCells)
+    const size = brushSize
+    for (let dx = 0; dx < size; dx++) {
+      for (let dy = 0; dy < size; dy++) {
+        const x = cx + dx
+        const y = cy + dy
+        if (x < 0 || y < 0 || x >= DRAW_COLS || y >= DRAW_ROWS) continue
+        const k = cellKey(x, y)
+        if (mode === 'add') next.add(k)
+        else next.delete(k)
+      }
+    }
+    setActiveCells(next)
+  }
+
+  const cellFromClient = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const el = canvasRef.current
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    const x = Math.floor((clientX - rect.left) / DRAW_CELL)
+    const y = Math.floor((clientY - rect.top) / DRAW_CELL)
+    if (x < 0 || y < 0 || x >= DRAW_COLS || y >= DRAW_ROWS) return null
+    return { x, y }
+  }
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled) return
+    const cell = cellFromClient(e.clientX, e.clientY)
+    if (!cell) return
+    e.preventDefault()
+    ;(e.target as Element).setPointerCapture(e.pointerId)
+    const isActive = activeCells.has(cellKey(cell.x, cell.y))
+    const mode: 'add' | 'remove' = isActive ? 'remove' : 'add'
+    paintingRef.current = mode
+    applyBrush(cell.x, cell.y, mode)
+  }
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!paintingRef.current || disabled) return
+    const cell = cellFromClient(e.clientX, e.clientY)
+    if (!cell) return
+    applyBrush(cell.x, cell.y, paintingRef.current)
+  }
+
+  const onPointerUp = () => {
+    paintingRef.current = null
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-lg border border-[#e5e7eb] bg-white p-0.5">
+          {([1, 2] as const).map((s) => {
+            const active = s === brushSize
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setBrushSize(s)}
+                disabled={disabled}
+                className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
+                  active ? 'bg-[#f59e0b] text-white' : 'text-[#6b7280] hover:text-[#111827]'
+                } disabled:opacity-50`}
+              >
+                Pensel {s}×{s}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => setActiveCells(new Set())}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-2 py-1 text-[11px] font-medium text-[#6b7280] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
+        >
+          <Eraser size={12} />
+          Ryd alt
         </button>
       </div>
 
-      <FloorTabs
-        floors={availableFloors}
-        currentFloor={currentFloor}
-        onSelect={setCurrentFloor}
-        onAdd={mode === 'edit' ? handleAddFloor : null}
-        onDelete={mode === 'edit' ? handleDeleteFloor : null}
-      />
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-[#6b7280]">
-          {mode === 'edit'
-            ? 'Træk borde, zoner og elementer på gridet. Klik for at vælge og ændre størrelse.'
-            : unplacedMsg ?? 'Klik på et bord for at se dagens booking'}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {mode === 'view' ? (
-            <button
-              type="button"
-              onClick={handleEnterEdit}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
-            >
-              <Pencil size={14} />
-              Rediger layout
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={saving}
-                className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#111827] transition disabled:opacity-50"
-              >
-                Annuller
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#f59e0b] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
-              >
-                <Save size={14} />
-                {saving ? 'Gemmer…' : 'Gem layout'}
-              </button>
-            </>
-          )}
+      <div className="mt-3 overflow-auto rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-2" style={{ maxHeight: 420 }}>
+        <div
+          ref={canvasRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          className="relative touch-none"
+          style={{
+            width: DRAW_COLS * DRAW_CELL,
+            height: DRAW_ROWS * DRAW_CELL,
+            backgroundImage:
+              'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+            backgroundSize: `${DRAW_CELL}px ${DRAW_CELL}px`,
+            backgroundColor: '#f9fafb',
+            userSelect: 'none',
+          }}
+        >
+          {Array.from(activeCells).map((k) => {
+            const { x, y } = parseCellKey(k)
+            return (
+              <div
+                key={k}
+                className="absolute border border-[#111827] bg-white"
+                style={{
+                  left: x * DRAW_CELL,
+                  top: y * DRAW_CELL,
+                  width: DRAW_CELL,
+                  height: DRAW_CELL,
+                }}
+              />
+            )
+          })}
         </div>
       </div>
 
-      {mode === 'edit' && (
-        <EditToolbar
-          addElementMenuOpen={addElementMenuOpen}
-          setAddElementMenuOpen={setAddElementMenuOpen}
-          onAddElement={handleAddElement}
-          onOpenZoneForm={() => setZoneFormOpen(true)}
-          selectedItem={selectedItem}
-          onDeleteSelected={handleDeleteSelected}
-        />
-      )}
-
-      <div className="mt-4 flex gap-4">
-        {mode === 'edit' && (
-          <aside className="w-48 shrink-0 rounded-xl border border-[#e5e7eb] bg-white p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-              Ikke placeret
-            </h3>
-            {unplaced.length === 0 ? (
-              <p className="mt-2 text-xs text-[#6b7280]">Alle borde er placeret.</p>
-            ) : (
-              <ul className="mt-2 space-y-2">
-                {unplaced.map((t) => (
-                  <li key={t.id}>
-                    <div
-                      draggable
-                      onDragStart={(e) => handleDragStart({ kind: 'table', id: t.id }, e)}
-                      onDragEnd={handleDragEnd}
-                      className="flex cursor-grab items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2.5 py-2 text-xs text-[#111827] hover:border-[#f59e0b] active:cursor-grabbing"
-                    >
-                      <div>
-                        <div className="font-semibold">Bord {t.table_number}</div>
-                        <div className="text-[10px] text-[#6b7280]">
-                          {t.capacity} pladser
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
+      <div className="mt-2 text-[11px] text-[#6b7280]">
+        {activeCells.size} celler markeret
+        {activeCells.size > 0 && activeCells.size < DRAW_MIN_CELLS && (
+          <span className="ml-1 text-[#b91c1c]">
+            — mindst {DRAW_MIN_CELLS} celler krævet
+          </span>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ------------ Step 2 --------------------------------------------------
+
+type Step2Props = {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  gridRef: React.RefObject<HTMLDivElement | null>
+  cols: number
+  rows: number
+  cellSize: number
+  gridPxWidth: number
+  gridPxHeight: number
+  usable: (x: number, y: number) => boolean
+  shapeMode: ShapeMode
+  zones: Zone[]
+  elements: FloorElement[]
+  selectedItem: ItemRef | null
+  setSelectedItem: (r: ItemRef | null) => void
+  draggedItem: ItemRef | null
+  dragPreview: { x: number; y: number; w: number; h: number } | null
+  setDragPreview: (p: { x: number; y: number; w: number; h: number } | null) => void
+  placementType: FloorElementType | null
+  setPlacementType: (t: FloorElementType | null) => void
+  zoneFormOpen: boolean
+  setZoneFormOpen: (v: boolean) => void
+  pendingZone: { name: string; priority: number; color: ZoneColor } | null
+  zoneDrawing: { startX: number; startY: number; endX: number; endY: number } | null
+  setZoneDrawing: (d: { startX: number; startY: number; endX: number; endY: number } | null) => void
+  onSubmitZoneForm: (input: { name: string; priority: number; color: ZoneColor }) => void
+  onCancelZoneForm: () => void
+  onPlaceElementAtCell: (cx: number, cy: number) => void
+  onFinalizeZone: (a: { x: number; y: number }, b: { x: number; y: number }) => void
+  onItemDragStart: (ref: ItemRef, e: ReactDragEvent<HTMLDivElement>) => void
+  onItemDragEnd: () => void
+  onGridDragOver: (e: ReactDragEvent<HTMLDivElement>) => void
+  onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
+  onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
+  onDeleteSelected: () => void
+}
+
+function Step2Elements(props: Step2Props) {
+  const {
+    containerRef,
+    gridRef,
+    cols,
+    rows,
+    cellSize,
+    gridPxWidth,
+    gridPxHeight,
+    usable,
+    shapeMode,
+    zones,
+    elements,
+    selectedItem,
+    setSelectedItem,
+    draggedItem,
+    dragPreview,
+    placementType,
+    setPlacementType,
+    zoneFormOpen,
+    setZoneFormOpen,
+    pendingZone,
+    zoneDrawing,
+    setZoneDrawing,
+    onSubmitZoneForm,
+    onCancelZoneForm,
+    onPlaceElementAtCell,
+    onFinalizeZone,
+    onItemDragStart,
+    onItemDragEnd,
+    onGridDragOver,
+    onGridDrop,
+    onResizeStart,
+    onDeleteSelected,
+  } = props
+
+  const cursorMode = placementType ? 'place-element' : pendingZone ? 'draw-zone' : 'idle'
+
+  const gridCellFromClient = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const grid = gridRef.current
+    if (!grid) return null
+    const rect = grid.getBoundingClientRect()
+    const x = Math.floor((clientX - rect.left) / cellSize)
+    const y = Math.floor((clientY - rect.top) / cellSize)
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return null
+    return { x, y }
+  }
+
+  const onGridPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (cursorMode === 'idle') return
+    const cell = gridCellFromClient(e.clientX, e.clientY)
+    if (!cell) return
+    if (cursorMode === 'place-element') {
+      onPlaceElementAtCell(cell.x, cell.y)
+    } else if (cursorMode === 'draw-zone') {
+      e.preventDefault()
+      ;(e.target as Element).setPointerCapture(e.pointerId)
+      setZoneDrawing({ startX: cell.x, startY: cell.y, endX: cell.x, endY: cell.y })
+    }
+  }
+
+  const onGridPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!zoneDrawing) return
+    const cell = gridCellFromClient(e.clientX, e.clientY)
+    if (!cell) return
+    setZoneDrawing({ ...zoneDrawing, endX: cell.x, endY: cell.y })
+  }
+
+  const onGridPointerUp = () => {
+    if (!zoneDrawing || !pendingZone) {
+      setZoneDrawing(null)
+      return
+    }
+    onFinalizeZone(
+      { x: zoneDrawing.startX, y: zoneDrawing.startY },
+      { x: zoneDrawing.endX, y: zoneDrawing.endY }
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <aside className="w-full shrink-0 space-y-5 lg:w-56">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+              Elementer
+            </h3>
+            <p className="mt-1 text-[11px] text-[#9ca3af]">
+              Klik et element, og klik derefter en celle for at placere det.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {ELEMENT_ORDER.map((t) => {
+                const active = placementType === t
+                return (
+                  <li key={t}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPlacementType(active ? null : t)
+                      }
+                      className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition ${
+                        active
+                          ? 'border-[#f59e0b] bg-[#fef3c7] text-[#92400e]'
+                          : 'border-[#e5e7eb] bg-white text-[#111827] hover:border-[#f59e0b]'
+                      }`}
+                    >
+                      {ELEMENT_CONFIGS[t].menuLabel}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+              Zoner
+            </h3>
+            <p className="mt-1 text-[11px] text-[#9ca3af]">
+              Opret en zone, og træk derefter et rektangel på gridet.
+            </p>
+            {pendingZone ? (
+              <div className="mt-2 rounded-lg border border-[#f59e0b] bg-[#fffbeb] px-2.5 py-2 text-[11px]">
+                <div className="font-semibold text-[#92400e]">
+                  Træk rektangel for &ldquo;{pendingZone.name}&rdquo;
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancelZoneForm}
+                  className="mt-1 text-[10px] font-medium text-[#b45309] hover:underline"
+                >
+                  Annuller
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setZoneFormOpen(true)}
+                className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-2.5 py-2 text-xs font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
+              >
+                <Plus size={12} />
+                Tilføj zone
+              </button>
+            )}
+
+            {selectedItem && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={onDeleteSelected}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#fecaca] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
+                >
+                  <Trash2 size={12} />
+                  Slet valgte ({selectedItem.kind === 'zone' ? 'zone' : 'element'})
+                </button>
+                <p className="mt-1 text-[10px] text-[#9ca3af]">
+                  (eller tryk Backspace)
+                </p>
+              </div>
+            )}
+          </div>
+        </aside>
 
         <div
           ref={containerRef}
@@ -946,105 +1638,84 @@ export function FloorPlan({
             minWidth: 0,
             overflowX: 'hidden',
             overflowY: 'auto',
-            maxHeight: 'calc(100vh - 320px)',
+            maxHeight: 'calc(100vh - 360px)',
           }}
         >
-          <div
-            ref={gridRef}
-            onDragOver={mode === 'edit' ? handleGridDragOver : undefined}
-            onDragLeave={() => setDragPreview(null)}
-            onDrop={mode === 'edit' ? handleGridDrop : undefined}
-            onClick={() => mode === 'edit' && setSelectedItem(null)}
-            className="relative"
-            style={{
-              width: gridPxWidth,
-              height: gridPxHeight,
-              overflow: 'hidden',
-              backgroundColor: '#fafafa',
-              backgroundImage:
-                'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
-              backgroundSize: `${cellSize}px ${cellSize}px`,
+          <GridSurface
+            gridRef={gridRef}
+            cols={cols}
+            rows={rows}
+            cellSize={cellSize}
+            gridPxWidth={gridPxWidth}
+            gridPxHeight={gridPxHeight}
+            usable={usable}
+            shapeMode={shapeMode}
+            cursor={cursorMode === 'idle' ? 'default' : 'crosshair'}
+            onPointerDown={onGridPointerDown}
+            onPointerMove={onGridPointerMove}
+            onPointerUp={onGridPointerUp}
+            onDragOver={onGridDragOver}
+            onDrop={onGridDrop}
+            onClick={(e) => {
+              if (cursorMode !== 'idle') return
+              e.stopPropagation()
+              setSelectedItem(null)
             }}
           >
-            {/* Zones layer */}
-            {currentZones.map((z) => (
+            {zones.map((z) => (
               <ZoneShape
                 key={z.id}
                 zone={z}
                 cellSize={cellSize}
-                mode={mode}
                 selected={selectedItem?.kind === 'zone' && selectedItem.id === z.id}
                 dragging={draggedItem?.kind === 'zone' && draggedItem.id === z.id}
+                editable={cursorMode === 'idle'}
                 onClick={(e) => {
-                  if (mode !== 'edit') return
+                  if (cursorMode !== 'idle') return
                   e.stopPropagation()
                   setSelectedItem({ kind: 'zone', id: z.id })
                 }}
-                onDragStart={(e) => handleDragStart({ kind: 'zone', id: z.id }, e)}
-                onDragEnd={handleDragEnd}
-                onResizeStart={(e) => handleResizeStart({ kind: 'zone', id: z.id }, e)}
+                onDragStart={(e) => onItemDragStart({ kind: 'zone', id: z.id }, e)}
+                onDragEnd={onItemDragEnd}
+                onResizeStart={(e) => onResizeStart({ kind: 'zone', id: z.id }, e)}
               />
             ))}
-
-            {/* Elements layer */}
-            {currentElements.map((el) => (
+            {elements.map((el) => (
               <ElementShape
                 key={el.id}
                 element={el}
                 cellSize={cellSize}
-                mode={mode}
                 selected={selectedItem?.kind === 'element' && selectedItem.id === el.id}
                 dragging={draggedItem?.kind === 'element' && draggedItem.id === el.id}
+                editable={cursorMode === 'idle'}
                 onClick={(e) => {
-                  if (mode !== 'edit') return
+                  if (cursorMode !== 'idle') return
                   e.stopPropagation()
                   setSelectedItem({ kind: 'element', id: el.id })
                 }}
-                onDragStart={(e) => handleDragStart({ kind: 'element', id: el.id }, e)}
-                onDragEnd={handleDragEnd}
-                onResizeStart={(e) => handleResizeStart({ kind: 'element', id: el.id }, e)}
+                onDragStart={(e) => onItemDragStart({ kind: 'element', id: el.id }, e)}
+                onDragEnd={onItemDragEnd}
+                onResizeStart={(e) => onResizeStart({ kind: 'element', id: el.id }, e)}
               />
             ))}
 
-            {/* Table cards layer */}
-            {currentPositions.map((p) => {
-              const table = tableById.get(p.table_id)
-              if (!table) return null
-              const booking = bookingByTableId.get(p.table_id) ?? null
-              const isSelected = selectedItem?.kind === 'table' && selectedItem.id === p.table_id
-              const isDragging = draggedItem?.kind === 'table' && draggedItem.id === p.table_id
+            {zoneDrawing && pendingZone && (
+              <div
+                className="pointer-events-none absolute rounded-md border-2 border-dashed"
+                style={{
+                  left: Math.min(zoneDrawing.startX, zoneDrawing.endX) * cellSize,
+                  top: Math.min(zoneDrawing.startY, zoneDrawing.endY) * cellSize,
+                  width:
+                    (Math.abs(zoneDrawing.endX - zoneDrawing.startX) + 1) * cellSize,
+                  height:
+                    (Math.abs(zoneDrawing.endY - zoneDrawing.startY) + 1) * cellSize,
+                  borderColor: ZONE_COLORS[pendingZone.color].border,
+                  backgroundColor: ZONE_COLORS[pendingZone.color].bg,
+                }}
+              />
+            )}
 
-              return (
-                <TableCard
-                  key={p.table_id}
-                  position={p}
-                  table={table}
-                  booking={booking}
-                  cellSize={cellSize}
-                  mode={mode}
-                  selected={isSelected}
-                  dragging={isDragging}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (mode === 'edit') {
-                      setSelectedItem((cur) =>
-                        cur?.kind === 'table' && cur.id === p.table_id
-                          ? null
-                          : { kind: 'table', id: p.table_id }
-                      )
-                    } else {
-                      setViewDetailId(p.table_id)
-                    }
-                  }}
-                  onDragStart={(e) => handleDragStart({ kind: 'table', id: p.table_id }, e)}
-                  onDragEnd={handleDragEnd}
-                  onResizeStart={(e) => handleResizeStart({ kind: 'table', id: p.table_id }, e)}
-                />
-              )
-            })}
-
-            {/* Drag preview */}
-            {mode === 'edit' && dragPreview && (
+            {dragPreview && (
               <div
                 className="pointer-events-none absolute z-40 rounded-md border-2 border-dashed border-[#f59e0b] bg-[#fef3c7]/40"
                 style={{
@@ -1055,48 +1726,497 @@ export function FloorPlan({
                 }}
               />
             )}
-          </div>
+          </GridSurface>
         </div>
       </div>
 
-      {mode === 'view' && detailTable && viewDetailId && (
-        <DetailModal
-          table={detailTable}
-          booking={detailBooking}
-          pending={pending}
-          onClose={() => setViewDetailId(null)}
-          onStatus={handleBookingStatus}
-        />
-      )}
-
-      {mode === 'edit' && zoneFormOpen && (
+      {zoneFormOpen && (
         <ZoneFormModal
-          onClose={() => setZoneFormOpen(false)}
-          onSubmit={handleAddZone}
-        />
-      )}
-
-      {dimModalOpen && (
-        <DimensionsModal
-          initial={dims}
-          containerWidth={containerWidth}
-          items={[
-            ...positionsList.map((p) => ({
-              grid_x: p.grid_x,
-              grid_y: p.grid_y,
-              width: p.width,
-              height: p.height,
-            })),
-            ...zonesList,
-            ...elementsList,
-          ]}
-          onClose={() => setDimModalOpen(false)}
-          onSave={handleSaveDims}
+          onClose={onCancelZoneForm}
+          onSubmit={onSubmitZoneForm}
         />
       )}
     </div>
   )
 }
+
+// ------------ Step 3 --------------------------------------------------
+
+type Step3Props = {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  gridRef: React.RefObject<HTMLDivElement | null>
+  cols: number
+  rows: number
+  cellSize: number
+  gridPxWidth: number
+  gridPxHeight: number
+  usable: (x: number, y: number) => boolean
+  shapeMode: ShapeMode
+  zones: Zone[]
+  elements: FloorElement[]
+  positions: TablePosition[]
+  unplacedTables: RestaurantTable[]
+  tableById: Map<string, RestaurantTable>
+  availableFloors: number[]
+  currentFloor: number
+  onSelectFloor: (n: number) => void
+  onAddFloor: () => void
+  onDeleteFloor: (n: number) => void
+  selectedItem: ItemRef | null
+  setSelectedItem: (r: ItemRef | null) => void
+  draggedItem: ItemRef | null
+  dragPreview: { x: number; y: number; w: number; h: number } | null
+  onItemDragStart: (ref: ItemRef, e: ReactDragEvent<HTMLDivElement>) => void
+  onItemDragEnd: () => void
+  onGridDragOver: (e: ReactDragEvent<HTMLDivElement>) => void
+  onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
+  onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
+  onDeleteSelected: () => void
+}
+
+function Step3Tables(props: Step3Props) {
+  const {
+    containerRef,
+    gridRef,
+    cols,
+    rows,
+    cellSize,
+    gridPxWidth,
+    gridPxHeight,
+    usable,
+    shapeMode,
+    zones,
+    elements,
+    positions,
+    unplacedTables,
+    tableById,
+    availableFloors,
+    currentFloor,
+    onSelectFloor,
+    onAddFloor,
+    onDeleteFloor,
+    selectedItem,
+    setSelectedItem,
+    draggedItem,
+    dragPreview,
+    onItemDragStart,
+    onItemDragEnd,
+    onGridDragOver,
+    onGridDrop,
+    onResizeStart,
+    onDeleteSelected,
+  } = props
+
+  return (
+    <div>
+      <FloorTabs
+        floors={availableFloors}
+        currentFloor={currentFloor}
+        onSelect={onSelectFloor}
+        onAdd={onAddFloor}
+        onDelete={onDeleteFloor}
+      />
+
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row">
+        <aside className="w-full shrink-0 space-y-3 lg:w-56">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+              Ikke placeret
+            </h3>
+            <p className="mt-1 text-[11px] text-[#9ca3af]">
+              Træk et bord ind på gridet for at placere det på etage {currentFloor}.
+            </p>
+            {unplacedTables.length === 0 ? (
+              <p className="mt-2 text-xs text-[#6b7280]">Alle borde er placeret.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {unplacedTables.map((t) => (
+                  <li key={t.id}>
+                    <div
+                      draggable
+                      onDragStart={(e) => onItemDragStart({ kind: 'table', id: t.id }, e)}
+                      onDragEnd={onItemDragEnd}
+                      className="cursor-grab rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2.5 py-2 text-xs text-[#111827] hover:border-[#f59e0b] active:cursor-grabbing"
+                    >
+                      <div className="font-semibold">Bord {t.table_number}</div>
+                      <div className="text-[10px] text-[#6b7280]">
+                        {t.capacity} pladser
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {selectedItem && selectedItem.kind === 'table' && (
+            <button
+              type="button"
+              onClick={onDeleteSelected}
+              className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#fecaca] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
+            >
+              <Trash2 size={12} />
+              Fjern bord fra grid
+            </button>
+          )}
+        </aside>
+
+        <div
+          ref={containerRef}
+          className="flex-1 rounded-xl border border-[#e5e7eb] bg-white p-3"
+          style={{
+            width: '100%',
+            minWidth: 0,
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 360px)',
+          }}
+        >
+          <GridSurface
+            gridRef={gridRef}
+            cols={cols}
+            rows={rows}
+            cellSize={cellSize}
+            gridPxWidth={gridPxWidth}
+            gridPxHeight={gridPxHeight}
+            usable={usable}
+            shapeMode={shapeMode}
+            onDragOver={onGridDragOver}
+            onDrop={onGridDrop}
+            onClick={(e) => {
+              e.stopPropagation()
+              setSelectedItem(null)
+            }}
+          >
+            {zones.map((z) => (
+              <ZoneShape
+                key={z.id}
+                zone={z}
+                cellSize={cellSize}
+                selected={false}
+                dragging={false}
+                editable={false}
+              />
+            ))}
+            {elements.map((el) => (
+              <ElementShape
+                key={el.id}
+                element={el}
+                cellSize={cellSize}
+                selected={false}
+                dragging={false}
+                editable={false}
+              />
+            ))}
+
+            {positions.map((p) => {
+              const t = tableById.get(p.table_id)
+              if (!t) return null
+              const isSelected = selectedItem?.kind === 'table' && selectedItem.id === p.table_id
+              const isDragging = draggedItem?.kind === 'table' && draggedItem.id === p.table_id
+              return (
+                <SetupTableCard
+                  key={p.table_id}
+                  position={p}
+                  table={t}
+                  cellSize={cellSize}
+                  selected={isSelected}
+                  dragging={isDragging}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedItem(
+                      selectedItem?.kind === 'table' && selectedItem.id === p.table_id
+                        ? null
+                        : { kind: 'table', id: p.table_id }
+                    )
+                  }}
+                  onDragStart={(e) => onItemDragStart({ kind: 'table', id: p.table_id }, e)}
+                  onDragEnd={onItemDragEnd}
+                  onResizeStart={(e) => onResizeStart({ kind: 'table', id: p.table_id }, e)}
+                />
+              )
+            })}
+
+            {dragPreview && (
+              <div
+                className="pointer-events-none absolute z-40 rounded-md border-2 border-dashed border-[#f59e0b] bg-[#fef3c7]/40"
+                style={{
+                  left: dragPreview.x * cellSize,
+                  top: dragPreview.y * cellSize,
+                  width: dragPreview.w * cellSize,
+                  height: dragPreview.h * cellSize,
+                }}
+              />
+            )}
+          </GridSurface>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ------------ View mode -----------------------------------------------
+
+type ViewModeProps = {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  gridRef: React.RefObject<HTMLDivElement | null>
+  cols: number
+  rows: number
+  cellSize: number
+  gridPxWidth: number
+  gridPxHeight: number
+  usable: (x: number, y: number) => boolean
+  availableFloors: number[]
+  currentFloor: number
+  onSelectFloor: (n: number) => void
+  positions: TablePosition[]
+  zones: Zone[]
+  elements: FloorElement[]
+  tableById: Map<string, RestaurantTable>
+  bookingByTableId: Map<string, TodayBooking>
+  viewDetailId: string | null
+  onSelectDetail: (id: string | null) => void
+  onOpenWizard: () => void
+}
+
+function ViewMode(props: ViewModeProps) {
+  const {
+    containerRef,
+    gridRef,
+    cols,
+    rows,
+    cellSize,
+    gridPxWidth,
+    gridPxHeight,
+    usable,
+    availableFloors,
+    currentFloor,
+    onSelectFloor,
+    positions,
+    zones,
+    elements,
+    tableById,
+    bookingByTableId,
+    viewDetailId,
+    onSelectDetail,
+    onOpenWizard,
+  } = props
+
+  const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
+  const detailBooking = viewDetailId ? bookingByTableId.get(viewDetailId) ?? null : null
+  const detailStatus = statusFromBooking(detailBooking)
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FloorTabs
+          floors={availableFloors}
+          currentFloor={currentFloor}
+          onSelect={onSelectFloor}
+          onAdd={null}
+          onDelete={null}
+        />
+        <button
+          type="button"
+          onClick={onOpenWizard}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
+        >
+          <Pencil size={14} />
+          Rediger layout
+        </button>
+      </div>
+
+      <div
+        ref={containerRef}
+        className="mt-4 rounded-xl border border-[#e5e7eb] bg-white p-3"
+        style={{
+          width: '100%',
+          minWidth: 0,
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          maxHeight: 'calc(100vh - 320px)',
+        }}
+      >
+        <GridSurface
+          gridRef={gridRef}
+          cols={cols}
+          rows={rows}
+          cellSize={cellSize}
+          gridPxWidth={gridPxWidth}
+          gridPxHeight={gridPxHeight}
+          usable={usable}
+          shapeMode="rect"
+        >
+          {zones.map((z) => (
+            <ZoneShape
+              key={z.id}
+              zone={z}
+              cellSize={cellSize}
+              selected={false}
+              dragging={false}
+              editable={false}
+            />
+          ))}
+          {elements.map((el) => (
+            <ElementShape
+              key={el.id}
+              element={el}
+              cellSize={cellSize}
+              selected={false}
+              dragging={false}
+              editable={false}
+            />
+          ))}
+          {positions.map((p) => {
+            const t = tableById.get(p.table_id)
+            if (!t) return null
+            const booking = bookingByTableId.get(p.table_id) ?? null
+            return (
+              <ViewTableCard
+                key={p.table_id}
+                position={p}
+                table={t}
+                status={statusFromBooking(booking)}
+                cellSize={cellSize}
+                onClick={() => onSelectDetail(p.table_id)}
+              />
+            )
+          })}
+        </GridSurface>
+      </div>
+
+      {detailTable && viewDetailId && (
+        <StatusPopover
+          table={detailTable}
+          status={detailStatus}
+          onClose={() => onSelectDetail(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+type TableStatus = 'ledig' | 'afventer' | 'optaget'
+
+function statusFromBooking(b: TodayBooking | null): TableStatus {
+  if (!b) return 'ledig'
+  return b.status === 'pending' ? 'afventer' : 'optaget'
+}
+
+const STATUS_META: Record<
+  TableStatus,
+  { label: string; card: string; badge: string; dot: string }
+> = {
+  ledig: {
+    label: 'Ledig',
+    card: 'border-[#e5e7eb] bg-white text-[#111827]',
+    badge: 'bg-[#f3f4f6] text-[#6b7280]',
+    dot: 'bg-[#9ca3af]',
+  },
+  afventer: {
+    label: 'Afventer',
+    card: 'border-[#f59e0b] bg-[#fef3c7] text-[#92400e]',
+    badge: 'bg-[#fffbeb] text-[#b45309]',
+    dot: 'bg-[#f59e0b]',
+  },
+  optaget: {
+    label: 'Optaget',
+    card: 'border-[#10b981] bg-[#d1fae5] text-[#065f46]',
+    badge: 'bg-[#ecfdf5] text-[#047857]',
+    dot: 'bg-[#10b981]',
+  },
+}
+
+// ------------ Grid surface --------------------------------------------
+
+function GridSurface({
+  gridRef,
+  cols,
+  rows,
+  cellSize,
+  gridPxWidth,
+  gridPxHeight,
+  usable,
+  shapeMode,
+  cursor,
+  onClick,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onDragOver,
+  onDrop,
+  children,
+}: {
+  gridRef: React.RefObject<HTMLDivElement | null>
+  cols: number
+  rows: number
+  cellSize: number
+  gridPxWidth: number
+  gridPxHeight: number
+  usable: (x: number, y: number) => boolean
+  shapeMode: ShapeMode
+  cursor?: 'default' | 'crosshair'
+  onClick?: (e: ReactMouseEvent<HTMLDivElement>) => void
+  onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onDragOver?: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDrop?: (e: ReactDragEvent<HTMLDivElement>) => void
+  children: React.ReactNode
+}) {
+  const unusableCells: React.ReactNode[] = []
+  if (shapeMode === 'draw') {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (!usable(x, y)) {
+          unusableCells.push(
+            <div
+              key={`u-${x}-${y}`}
+              className="pointer-events-none absolute"
+              style={{
+                left: x * cellSize,
+                top: y * cellSize,
+                width: cellSize,
+                height: cellSize,
+                backgroundColor: '#f3f4f6',
+                border: '1px dashed #e5e7eb',
+              }}
+            />
+          )
+        }
+      }
+    }
+  }
+
+  return (
+    <div
+      ref={gridRef}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className="relative"
+      style={{
+        width: gridPxWidth,
+        height: gridPxHeight,
+        overflow: 'hidden',
+        backgroundColor: '#fafafa',
+        backgroundImage:
+          'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundSize: `${cellSize}px ${cellSize}px`,
+        cursor: cursor ?? 'default',
+        touchAction: 'none',
+      }}
+    >
+      {unusableCells}
+      {children}
+    </div>
+  )
+}
+
+// ------------ Floor tabs ----------------------------------------------
 
 function FloorTabs({
   floors,
@@ -1118,7 +2238,7 @@ function FloorTabs({
         return (
           <div
             key={f}
-            className={`group inline-flex items-center overflow-hidden rounded-lg border transition ${
+            className={`inline-flex items-center overflow-hidden rounded-lg border transition ${
               active ? 'border-[#f59e0b] bg-[#f59e0b]' : 'border-[#e5e7eb] bg-white'
             }`}
           >
@@ -1161,252 +2281,14 @@ function FloorTabs({
   )
 }
 
-function EditToolbar({
-  addElementMenuOpen,
-  setAddElementMenuOpen,
-  onAddElement,
-  onOpenZoneForm,
-  selectedItem,
-  onDeleteSelected,
-}: {
-  addElementMenuOpen: boolean
-  setAddElementMenuOpen: (v: boolean) => void
-  onAddElement: (type: FloorElementType) => void
-  onOpenZoneForm: () => void
-  selectedItem: ItemRef | null
-  onDeleteSelected: () => void
-}) {
-  const elementTypes: FloorElementType[] = [
-    'door',
-    'kitchen',
-    'bar',
-    'toilet',
-    'window',
-    'wall',
-  ]
-
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setAddElementMenuOpen(!addElementMenuOpen)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
-        >
-          <Plus size={12} />
-          Tilføj element
-        </button>
-        {addElementMenuOpen && (
-          <div
-            className="absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-[#e5e7eb] bg-white shadow-lg"
-            onMouseLeave={() => setAddElementMenuOpen(false)}
-          >
-            {elementTypes.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => onAddElement(t)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#111827] hover:bg-[#fef3c7] transition"
-              >
-                {ELEMENT_CONFIGS[t].menuLabel}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={onOpenZoneForm}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
-      >
-        <Plus size={12} />
-        Tilføj zone
-      </button>
-
-      {selectedItem && (
-        <button
-          type="button"
-          onClick={onDeleteSelected}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#fecaca] bg-white px-3 py-1.5 text-xs font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
-        >
-          <Trash2 size={12} />
-          Slet{' '}
-          {selectedItem.kind === 'table'
-            ? 'bord'
-            : selectedItem.kind === 'zone'
-              ? 'zone'
-              : 'element'}
-        </button>
-      )}
-    </div>
-  )
-}
-
-function TableCard({
-  position,
-  table,
-  booking,
-  cellSize,
-  mode,
-  selected,
-  dragging,
-  onClick,
-  onDragStart,
-  onDragEnd,
-  onResizeStart,
-}: {
-  position: TablePosition
-  table: RestaurantTable
-  booking: TodayBooking | null
-  cellSize: number
-  mode: 'view' | 'edit'
-  selected: boolean
-  dragging: boolean
-  onClick: (e: ReactMouseEvent) => void
-  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
-  onDragEnd: () => void
-  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
-}) {
-  let colorClasses = 'border-[#e5e7eb] bg-white hover:border-[#f59e0b] text-[#111827]'
-  if (booking) {
-    if (booking.status === 'pending') {
-      colorClasses = 'border-[#f59e0b] bg-[#fef3c7] text-[#92400e] hover:border-[#d97706]'
-    } else {
-      colorClasses = 'border-[#10b981] bg-[#d1fae5] text-[#065f46] hover:border-[#059669]'
-    }
-  }
-
-  const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
-  const tier: 'tiny' | 'compact' | 'full' =
-    cellSize < 25 ? 'tiny' : cellSize < 40 ? 'compact' : 'full'
-  const showCardDetails = tier === 'full' && position.width >= 3 && position.height >= 2
-
-  const dotColor = !booking
-    ? '#d1d5db'
-    : booking.status === 'pending'
-      ? '#f59e0b'
-      : '#10b981'
-
-  const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
-  const nameFont = Math.max(8, Math.min(12, cellSize * 0.28))
-  const badgeFont = Math.max(7, Math.min(11, cellSize * 0.25))
-  const noteFont = Math.max(7, Math.min(10, cellSize * 0.22))
-  const cardRadius = Math.max(4, cellSize * 0.15)
-  const dotSize = Math.max(4, cellSize * 0.12)
-
-  return (
-    <div
-      draggable={mode === 'edit'}
-      onClick={onClick}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className={`absolute z-30 flex flex-col overflow-hidden border-2 transition ${colorClasses} ${editRing} ${
-        dragging ? 'opacity-50' : ''
-      } ${mode === 'edit' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
-        tier === 'tiny' ? 'p-0.5 items-center justify-center' : 'p-1.5'
-      }`}
-      style={{
-        left: position.grid_x * cellSize,
-        top: position.grid_y * cellSize,
-        width: position.width * cellSize,
-        height: position.height * cellSize,
-        borderRadius: cardRadius,
-      }}
-    >
-      {tier === 'tiny' ? (
-        <div className="flex flex-col items-center gap-0.5">
-          <span
-            className="rounded-full"
-            style={{
-              backgroundColor: dotColor,
-              width: dotSize,
-              height: dotSize,
-            }}
-            aria-hidden
-          />
-          <span
-            className="font-bold leading-none"
-            style={{ fontSize: numberFont }}
-          >
-            {table.table_number}
-          </span>
-        </div>
-      ) : (
-        <>
-          <div className="flex items-start justify-between gap-1">
-            <div
-              className="font-bold leading-tight"
-              style={{ fontSize: numberFont }}
-            >
-              Bord {table.table_number}
-            </div>
-            <div
-              className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 font-medium text-[#374151]"
-              style={{ fontSize: badgeFont }}
-            >
-              {table.capacity} pers.
-            </div>
-          </div>
-
-          {booking ? (
-            <div className="mt-1 min-w-0 flex-1">
-              <div
-                className="truncate font-semibold"
-                style={{ fontSize: nameFont }}
-              >
-                {tier === 'full'
-                  ? `${booking.guest_name} · ${formatTime(booking.booking_time)}`
-                  : booking.guest_name}
-              </div>
-              {showCardDetails && (
-                <>
-                  <div
-                    className="mt-0.5 opacity-80"
-                    style={{ fontSize: noteFont }}
-                  >
-                    {booking.party_size} pers.
-                    {booking.status === 'pending' ? ' · afventer' : ' · bekræftet'}
-                  </div>
-                  {booking.notes && (
-                    <div
-                      className="mt-0.5 truncate italic text-[#b91c1c]"
-                      style={{ fontSize: noteFont }}
-                    >
-                      {booking.notes}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ) : tier === 'full' ? (
-            <div
-              className="mt-1 text-[#9ca3af]"
-              style={{ fontSize: nameFont }}
-            >
-              Ledig
-            </div>
-          ) : null}
-        </>
-      )}
-
-      {mode === 'edit' && selected && (
-        <div
-          onPointerDown={onResizeStart}
-          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
-          aria-label="Ændr størrelse"
-        />
-      )}
-    </div>
-  )
-}
+// ------------ Item shapes --------------------------------------------
 
 function ZoneShape({
   zone,
   cellSize,
-  mode,
   selected,
   dragging,
+  editable,
   onClick,
   onDragStart,
   onDragEnd,
@@ -1414,30 +2296,25 @@ function ZoneShape({
 }: {
   zone: Zone
   cellSize: number
-  mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
-  onClick: (e: ReactMouseEvent) => void
-  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
-  onDragEnd: () => void
-  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+  editable: boolean
+  onClick?: (e: ReactMouseEvent) => void
+  onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd?: () => void
+  onResizeStart?: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const cfg = ZONE_COLORS[zone.color]
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
-
   return (
     <div
-      draggable={mode === 'edit'}
+      draggable={editable}
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={`absolute z-10 rounded-md border-2 transition ${editRing} ${
         dragging ? 'opacity-50' : ''
-      } ${
-        mode === 'edit'
-          ? 'cursor-grab active:cursor-grabbing'
-          : 'pointer-events-none'
-      }`}
+      } ${editable ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'}`}
       style={{
         left: zone.grid_x * cellSize,
         top: zone.grid_y * cellSize,
@@ -1455,8 +2332,7 @@ function ZoneShape({
           Prio {zone.priority}
         </span>
       </div>
-
-      {mode === 'edit' && selected && (
+      {editable && selected && onResizeStart && (
         <div
           onPointerDown={onResizeStart}
           className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
@@ -1470,9 +2346,9 @@ function ZoneShape({
 function ElementShape({
   element,
   cellSize,
-  mode,
   selected,
   dragging,
+  editable,
   onClick,
   onDragStart,
   onDragEnd,
@@ -1480,44 +2356,63 @@ function ElementShape({
 }: {
   element: FloorElement
   cellSize: number
-  mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
-  onClick: (e: ReactMouseEvent) => void
-  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
-  onDragEnd: () => void
-  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+  editable: boolean
+  onClick?: (e: ReactMouseEvent) => void
+  onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd?: () => void
+  onResizeStart?: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const cfg = ELEMENT_CONFIGS[element.type]
   const Icon = cfg.icon
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
 
+  const isWindow = cfg.edgeStripe
   return (
     <div
-      draggable={mode === 'edit'}
+      draggable={editable}
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={`absolute z-20 flex items-center justify-center gap-1 rounded-md transition ${editRing} ${
         dragging ? 'opacity-50' : ''
-      } ${
-        mode === 'edit'
-          ? 'cursor-grab active:cursor-grabbing'
-          : 'pointer-events-none'
-      }`}
+      } ${editable ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'}`}
       style={{
         left: element.grid_x * cellSize,
         top: element.grid_y * cellSize,
         width: element.width * cellSize,
         height: element.height * cellSize,
-        backgroundColor: cfg.bg,
-        border: `2px ${cfg.borderStyle} ${cfg.border}`,
+        backgroundColor: isWindow ? 'transparent' : cfg.bg,
+        border: isWindow ? 'none' : `2px ${cfg.borderStyle} ${cfg.border}`,
         color: cfg.textColor,
       }}
     >
-      {Icon && <Icon size={16} />}
-      <span className="text-[11px] font-semibold">{element.label ?? cfg.label}</span>
-      {mode === 'edit' && selected && (
+      {isWindow && (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          aria-hidden
+        >
+          <div
+            style={{
+              width: '100%',
+              height: 4,
+              backgroundColor: cfg.border,
+              borderRadius: 2,
+            }}
+          />
+        </div>
+      )}
+      {Icon && !isWindow && <Icon size={Math.min(16, cellSize * 0.35)} />}
+      {!isWindow && (
+        <span
+          className="font-semibold"
+          style={{ fontSize: Math.max(9, Math.min(12, cellSize * 0.25)) }}
+        >
+          {element.label ?? cfg.label}
+        </span>
+      )}
+      {editable && selected && onResizeStart && (
         <div
           onPointerDown={onResizeStart}
           className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
@@ -1528,115 +2423,195 @@ function ElementShape({
   )
 }
 
-function DetailModal({
+function SetupTableCard({
+  position,
   table,
-  booking,
-  pending,
+  cellSize,
+  selected,
+  dragging,
+  onClick,
+  onDragStart,
+  onDragEnd,
+  onResizeStart,
+}: {
+  position: TablePosition
+  table: RestaurantTable
+  cellSize: number
+  selected: boolean
+  dragging: boolean
+  onClick: (e: ReactMouseEvent) => void
+  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
+  const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
+  const badgeFont = Math.max(7, Math.min(11, cellSize * 0.25))
+  const radius = Math.max(4, cellSize * 0.15)
+  return (
+    <div
+      draggable
+      onClick={onClick}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`absolute z-30 flex flex-col overflow-hidden border-2 border-[#e5e7eb] bg-white p-1 text-[#111827] transition hover:border-[#f59e0b] ${editRing} ${
+        dragging ? 'opacity-50' : ''
+      } cursor-grab active:cursor-grabbing`}
+      style={{
+        left: position.grid_x * cellSize,
+        top: position.grid_y * cellSize,
+        width: position.width * cellSize,
+        height: position.height * cellSize,
+        borderRadius: radius,
+      }}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <div
+          className="font-bold leading-tight"
+          style={{ fontSize: numberFont }}
+        >
+          Bord {table.table_number}
+        </div>
+        <div
+          className="shrink-0 rounded-full bg-[#fef3c7] px-1.5 py-0.5 font-medium text-[#92400e]"
+          style={{ fontSize: badgeFont }}
+        >
+          {table.capacity} pers.
+        </div>
+      </div>
+      {selected && (
+        <div
+          onPointerDown={onResizeStart}
+          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
+          aria-label="Ændr størrelse"
+        />
+      )}
+    </div>
+  )
+}
+
+function ViewTableCard({
+  position,
+  table,
+  status,
+  cellSize,
+  onClick,
+}: {
+  position: TablePosition
+  table: RestaurantTable
+  status: TableStatus
+  cellSize: number
+  onClick: () => void
+}) {
+  const meta = STATUS_META[status]
+  const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
+  const badgeFont = Math.max(7, Math.min(11, cellSize * 0.25))
+  const radius = Math.max(4, cellSize * 0.15)
+  const dotSize = Math.max(4, cellSize * 0.12)
+  const tier: 'tiny' | 'full' = cellSize < 28 ? 'tiny' : 'full'
+
+  return (
+    <div
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={`absolute z-30 flex cursor-pointer flex-col overflow-hidden border-2 p-1 transition ${meta.card} ${
+        tier === 'tiny' ? 'items-center justify-center' : ''
+      }`}
+      style={{
+        left: position.grid_x * cellSize,
+        top: position.grid_y * cellSize,
+        width: position.width * cellSize,
+        height: position.height * cellSize,
+        borderRadius: radius,
+      }}
+    >
+      {tier === 'tiny' ? (
+        <div className="flex flex-col items-center gap-0.5">
+          <span
+            className={`rounded-full ${meta.dot}`}
+            style={{ width: dotSize, height: dotSize }}
+            aria-hidden
+          />
+          <span className="font-bold leading-none" style={{ fontSize: numberFont }}>
+            {table.table_number}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-1">
+            <div className="font-bold leading-tight" style={{ fontSize: numberFont }}>
+              Bord {table.table_number}
+            </div>
+            <div
+              className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 font-medium text-[#374151]"
+              style={{ fontSize: badgeFont }}
+            >
+              {table.capacity} pers.
+            </div>
+          </div>
+          <div className="mt-auto flex items-center gap-1">
+            <span
+              className={`rounded-full ${meta.dot}`}
+              style={{ width: dotSize, height: dotSize }}
+              aria-hidden
+            />
+            <span
+              className="font-semibold"
+              style={{ fontSize: badgeFont }}
+            >
+              {meta.label}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ------------ Popover & zone form -------------------------------------
+
+function StatusPopover({
+  table,
+  status,
   onClose,
-  onStatus,
 }: {
   table: RestaurantTable
-  booking: TodayBooking | null
-  pending: boolean
+  status: TableStatus
   onClose: () => void
-  onStatus: (bookingId: string, status: BookingStatus) => void
 }) {
+  const meta = STATUS_META[status]
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-[#e5e7eb] bg-white shadow-lg"
+        className="w-full max-w-xs rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
-          <h2 className="text-base font-semibold text-[#111827]">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-[#111827]">
             Bord {table.table_number}
-          </h2>
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
             aria-label="Luk"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
-
-        <div className="space-y-3 p-5 text-sm text-[#111827]">
-          <div className="flex items-center gap-2 text-[#6b7280]">
-            <Users size={14} />
-            {table.capacity} pladser
-          </div>
-
-          {booking ? (
-            <>
-              <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-[#111827]">
-                    {booking.guest_name}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                      booking.status === 'pending'
-                        ? 'bg-[#fffbeb] text-[#b45309]'
-                        : 'bg-[#ecfdf5] text-[#047857]'
-                    }`}
-                  >
-                    {booking.status === 'pending' ? 'Afventer' : 'Bekræftet'}
-                  </span>
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#6b7280]">
-                  <span>{formatTime(booking.booking_time)}</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Users size={12} />
-                    {booking.party_size} pers.
-                  </span>
-                  {booking.guest_phone && (
-                    <span className="inline-flex items-center gap-1">
-                      <Phone size={12} />
-                      {booking.guest_phone}
-                    </span>
-                  )}
-                </div>
-
-                {booking.notes && (
-                  <div className="mt-2 flex items-start gap-1.5 rounded border border-[#fecaca] bg-[#fef2f2] px-2 py-1.5 text-xs italic text-[#b91c1c]">
-                    <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                    {booking.notes}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                {booking.status === 'pending' && (
-                  <button
-                    type="button"
-                    onClick={() => onStatus(booking.id, 'confirmed')}
-                    disabled={pending}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
-                  >
-                    <Check size={14} />
-                    Bekræft
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onStatus(booking.id, 'cancelled')}
-                  disabled={pending}
-                  className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
-                >
-                  Annuller booking
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-[#6b7280]">
-              Ingen booking på dette bord i dag.
-            </p>
-          )}
+        <div className="mt-2 flex items-center gap-2 text-sm text-[#6b7280]">
+          <span>{table.capacity} pers.</span>
+          <span>·</span>
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.badge}`}
+          >
+            {meta.label}
+          </span>
         </div>
       </div>
     </div>
@@ -1655,15 +2630,21 @@ function ZoneFormModal({
   const [color, setColor] = useState<ZoneColor>('amber')
   const [localError, setLocalError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) {
+    if (!name.trim()) {
       setLocalError('Zonenavn er påkrævet')
       return
     }
-    onSubmit({ name: trimmed, priority, color })
+    if (priority < 1 || priority > 10) {
+      setLocalError('Prioritet skal være mellem 1 og 10')
+      return
+    }
+    onSubmit({ name: name.trim(), priority, color })
   }
+
+  const inputClass =
+    'w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]'
 
   return (
     <div
@@ -1685,14 +2666,12 @@ function ZoneFormModal({
             <X size={16} />
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+        <form onSubmit={submit} className="space-y-4 p-5">
           {localError && (
             <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
               {localError}
             </div>
           )}
-
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
               Navn
@@ -1703,24 +2682,23 @@ function ZoneFormModal({
               onChange={(e) => setName(e.target.value)}
               autoFocus
               required
-              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
+              className={inputClass}
             />
           </div>
-
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-              Prioritet (lavere tal = fyldes først)
+              Prioritet (1-10, lavere = fyldes først)
             </label>
             <input
               type="number"
               min={1}
+              max={10}
               step={1}
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value))}
-              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
+              className={inputClass}
             />
           </div>
-
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
               Farve
@@ -1744,7 +2722,6 @@ function ZoneFormModal({
               })}
             </div>
           </div>
-
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
@@ -1757,180 +2734,7 @@ function ZoneFormModal({
               type="submit"
               className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
-              Tilføj zone
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-function DimensionsModal({
-  initial,
-  containerWidth,
-  items,
-  onClose,
-  onSave,
-}: {
-  initial: Dimensions
-  containerWidth: number
-  items: { grid_x: number; grid_y: number; width: number; height: number }[]
-  onClose: () => void
-  onSave: (d: Dimensions) => void
-}) {
-  const [lengthM, setLengthM] = useState(initial.lengthM)
-  const [widthM, setWidthM] = useState(initial.widthM)
-  const [resolution, setResolution] = useState<Resolution>(initial.resolution)
-  const [localError, setLocalError] = useState<string | null>(null)
-
-  const draft: Dimensions = { lengthM, widthM, resolution }
-  const { cols: newCols, rows: newRows } = dimsToGrid(draft)
-  const estimatedCellSize = Math.max(1, Math.floor(containerWidth / newCols))
-  const tooDense = estimatedCellSize < 20
-
-  const clippedCount = items.reduce(
-    (acc, it) =>
-      it.grid_x + it.width > newCols || it.grid_y + it.height > newRows
-        ? acc + 1
-        : acc,
-    0
-  )
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (
-      !Number.isFinite(lengthM) ||
-      lengthM < MIN_METERS ||
-      lengthM > MAX_METERS
-    ) {
-      setLocalError(`Længde skal være mellem ${MIN_METERS} og ${MAX_METERS} meter`)
-      return
-    }
-    if (!Number.isFinite(widthM) || widthM < MIN_METERS || widthM > MAX_METERS) {
-      setLocalError(`Bredde skal være mellem ${MIN_METERS} og ${MAX_METERS} meter`)
-      return
-    }
-    onSave({ lengthM, widthM, resolution })
-  }
-
-  const inputClass =
-    'w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]'
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-xl border border-[#e5e7eb] bg-white shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
-          <h2 className="text-base font-semibold text-[#111827]">
-            Lokale dimensioner
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-            aria-label="Luk"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 p-5">
-          {localError && (
-            <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
-              {localError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-                Længde (meter)
-              </label>
-              <input
-                type="number"
-                min={MIN_METERS}
-                max={MAX_METERS}
-                step="0.25"
-                value={lengthM}
-                onChange={(e) => setLengthM(Number(e.target.value))}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-                Bredde (meter)
-              </label>
-              <input
-                type="number"
-                min={MIN_METERS}
-                max={MAX_METERS}
-                step="0.25"
-                value={widthM}
-                onChange={(e) => setWidthM(Number(e.target.value))}
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-              Opløsning
-            </label>
-            <select
-              value={resolution}
-              onChange={(e) =>
-                setResolution(Number(e.target.value) as Resolution)
-              }
-              className={inputClass}
-            >
-              <option value={1}>Lav (1 m/celle)</option>
-              <option value={0.5}>Normal (0,5 m/celle)</option>
-              <option value={0.25}>Høj (0,25 m/celle)</option>
-            </select>
-          </div>
-
-          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-xs text-[#6b7280]">
-            Dit grid bliver <strong className="text-[#111827]">{newCols} × {newRows}</strong> celler (ca. {estimatedCellSize}px per celle)
-          </div>
-
-          {tooDense && (
-            <div className="flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <span>
-                OBS: Opløsningen er for høj til skærmen — vælg lavere opløsning eller gør lokalet mindre.
-              </span>
-            </div>
-          )}
-
-          {clippedCount > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-[#fcd34d] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <span>
-                OBS: {clippedCount}{' '}
-                {clippedCount === 1 ? 'element ligger' : 'elementer ligger'} uden for det nye grid og vil ikke være synlige.
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
-            >
-              Annuller
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
-            >
-              Gem dimensioner
+              Fortsæt
             </button>
           </div>
         </form>
