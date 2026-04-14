@@ -1288,13 +1288,20 @@ function TableCard({
       ? '#f59e0b'
       : '#10b981'
 
+  const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
+  const nameFont = Math.max(8, Math.min(12, cellSize * 0.28))
+  const badgeFont = Math.max(7, Math.min(11, cellSize * 0.25))
+  const noteFont = Math.max(7, Math.min(10, cellSize * 0.22))
+  const cardRadius = Math.max(4, cellSize * 0.15)
+  const dotSize = Math.max(4, cellSize * 0.12)
+
   return (
     <div
       draggable={mode === 'edit'}
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`absolute z-30 flex flex-col overflow-hidden rounded-md border-2 text-xs transition ${colorClasses} ${editRing} ${
+      className={`absolute z-30 flex flex-col overflow-hidden border-2 transition ${colorClasses} ${editRing} ${
         dragging ? 'opacity-50' : ''
       } ${mode === 'edit' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
         tier === 'tiny' ? 'p-0.5 items-center justify-center' : 'p-1.5'
@@ -1304,41 +1311,68 @@ function TableCard({
         top: position.grid_y * cellSize,
         width: position.width * cellSize,
         height: position.height * cellSize,
+        borderRadius: cardRadius,
       }}
     >
       {tier === 'tiny' ? (
         <div className="flex flex-col items-center gap-0.5">
           <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: dotColor }}
+            className="rounded-full"
+            style={{
+              backgroundColor: dotColor,
+              width: dotSize,
+              height: dotSize,
+            }}
             aria-hidden
           />
-          <span className="text-[10px] font-bold leading-none">{table.table_number}</span>
+          <span
+            className="font-bold leading-none"
+            style={{ fontSize: numberFont }}
+          >
+            {table.table_number}
+          </span>
         </div>
       ) : (
         <>
           <div className="flex items-start justify-between gap-1">
-            <div className="font-bold leading-tight">Bord {table.table_number}</div>
-            <div className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-medium text-[#374151]">
+            <div
+              className="font-bold leading-tight"
+              style={{ fontSize: numberFont }}
+            >
+              Bord {table.table_number}
+            </div>
+            <div
+              className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 font-medium text-[#374151]"
+              style={{ fontSize: badgeFont }}
+            >
               {table.capacity} pers.
             </div>
           </div>
 
           {booking ? (
             <div className="mt-1 min-w-0 flex-1">
-              <div className="truncate text-[11px] font-semibold">
+              <div
+                className="truncate font-semibold"
+                style={{ fontSize: nameFont }}
+              >
                 {tier === 'full'
                   ? `${booking.guest_name} · ${formatTime(booking.booking_time)}`
                   : booking.guest_name}
               </div>
               {showCardDetails && (
                 <>
-                  <div className="mt-0.5 text-[10px] opacity-80">
+                  <div
+                    className="mt-0.5 opacity-80"
+                    style={{ fontSize: noteFont }}
+                  >
                     {booking.party_size} pers.
                     {booking.status === 'pending' ? ' · afventer' : ' · bekræftet'}
                   </div>
                   {booking.notes && (
-                    <div className="mt-0.5 truncate text-[10px] italic text-[#b91c1c]">
+                    <div
+                      className="mt-0.5 truncate italic text-[#b91c1c]"
+                      style={{ fontSize: noteFont }}
+                    >
                       {booking.notes}
                     </div>
                   )}
@@ -1346,7 +1380,12 @@ function TableCard({
               )}
             </div>
           ) : tier === 'full' ? (
-            <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
+            <div
+              className="mt-1 text-[#9ca3af]"
+              style={{ fontSize: nameFont }}
+            >
+              Ledig
+            </div>
           ) : null}
         </>
       )}
