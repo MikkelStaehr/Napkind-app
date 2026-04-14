@@ -12,7 +12,7 @@ export default async function RegisterPage({
     return (
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
         <div className="w-full max-w-sm text-center">
-          <Link href="/" className="font-logo text-4xl tracking-tight text-neutral-900">
+          <Link href="/" className="font-logo text-6xl tracking-tight text-neutral-900 sm:text-7xl">
             Napkind
           </Link>
 
@@ -42,7 +42,7 @@ export default async function RegisterPage({
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <Link href="/" className="font-logo text-4xl tracking-tight text-neutral-900">
+          <Link href="/" className="font-logo text-6xl tracking-tight text-neutral-900 sm:text-7xl">
             Napkind
           </Link>
           <p className="mt-2 text-sm text-neutral-600">Opret din restaurant</p>

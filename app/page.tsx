@@ -3,8 +3,8 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 bg-white">
-      <div className="w-full max-w-xl text-center">
-        <h1 className="font-logo text-6xl tracking-tight text-[#111827]">
+      <div className="w-full max-w-4xl text-center">
+        <h1 className="font-logo text-8xl tracking-tight text-[#111827] sm:text-9xl md:text-[10rem] lg:text-[12rem]">
           Napkind
         </h1>
         <p className="mt-6 text-lg text-[#6b7280]">
