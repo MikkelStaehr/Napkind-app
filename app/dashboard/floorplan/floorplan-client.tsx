@@ -138,6 +138,59 @@ function formatClock(d: Date): string {
     .replace('.', ':')
 }
 
+function formatDanishDate(d: Date): string {
+  const s = new Intl.DateTimeFormat('da-DK', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(d)
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+type BookingPhase = 'current' | 'upcoming' | 'past'
+
+const CURRENT_WINDOW_BEFORE_MS = 30 * 60 * 1000 // 30 min into the past
+const CURRENT_WINDOW_AFTER_MS = 90 * 60 * 1000 // 90 min into the future
+
+function classifyBooking(b: TodayBooking, now: Date): BookingPhase {
+  const [hh, mm] = b.booking_time.split(':').map(Number)
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 'past'
+  const bookingDate = new Date(now)
+  bookingDate.setHours(hh, mm, 0, 0)
+  const diffMs = bookingDate.getTime() - now.getTime()
+  if (diffMs >= -CURRENT_WINDOW_BEFORE_MS && diffMs <= CURRENT_WINDOW_AFTER_MS) {
+    return 'current'
+  }
+  if (diffMs > CURRENT_WINDOW_AFTER_MS) return 'upcoming'
+  return 'past'
+}
+
+type TableBookings = {
+  current: TodayBooking | null
+  upcoming: TodayBooking | null
+}
+
+function resolveTableBookings(
+  bookings: TodayBooking[],
+  now: Date
+): Map<string, TableBookings> {
+  const m = new Map<string, TableBookings>()
+  for (const b of bookings) {
+    const phase = classifyBooking(b, now)
+    const prev = m.get(b.table_id) ?? { current: null, upcoming: null }
+    if (phase === 'current' && !prev.current) {
+      prev.current = b
+    } else if (phase === 'upcoming') {
+      if (!prev.upcoming || b.booking_time < prev.upcoming.booking_time) {
+        prev.upcoming = b
+      }
+    }
+    m.set(b.table_id, prev)
+  }
+  return m
+}
+
 function overlaps(
   a: { grid_x: number; grid_y: number; width: number; height: number },
   b: { grid_x: number; grid_y: number; width: number; height: number }
@@ -154,6 +207,7 @@ type Suggestion = {
   table: RestaurantTable
   zoneName: string | null
   zonePriority: number
+  upcomingTime: string | null
 }
 
 function findSuggestions(
@@ -161,16 +215,15 @@ function findSuggestions(
   tables: RestaurantTable[],
   positions: TablePosition[],
   zones: Zone[],
-  bookings: TodayBooking[]
+  tableBookings: Map<string, TableBookings>
 ): Suggestion[] {
-  const occupied = new Set(bookings.map((b) => b.table_id))
   const positionByTable = new Map<string, TablePosition>()
   for (const p of positions) positionByTable.set(p.table_id, p)
 
   return tables
     .filter((t) => t.is_active)
     .filter((t) => t.capacity >= partySize)
-    .filter((t) => !occupied.has(t.id))
+    .filter((t) => !tableBookings.get(t.id)?.current)
     .map((t) => {
       const pos = positionByTable.get(t.id)
       let zonePriority = Number.POSITIVE_INFINITY
@@ -184,7 +237,13 @@ function findSuggestions(
           }
         }
       }
-      return { table: t, zoneName, zonePriority }
+      const upcoming = tableBookings.get(t.id)?.upcoming ?? null
+      return {
+        table: t,
+        zoneName,
+        zonePriority,
+        upcomingTime: upcoming ? formatTime(upcoming.booking_time) : null,
+      }
     })
     .sort((a, b) => {
       if (a.zonePriority !== b.zonePriority) return a.zonePriority - b.zonePriority
@@ -222,6 +281,7 @@ export function FloorplanClient({
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestNotes, setGuestNotes] = useState('')
+  const [mobileWalkInOpen, setMobileWalkInOpen] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -250,13 +310,10 @@ export function FloorplanClient({
     return m
   }, [tables])
 
-  const bookingByTableId = useMemo(() => {
-    const m = new Map<string, TodayBooking>()
-    for (const b of bookings) {
-      if (!m.has(b.table_id)) m.set(b.table_id, b)
-    }
-    return m
-  }, [bookings])
+  const resolvedBookings = useMemo(
+    () => resolveTableBookings(bookings, now),
+    [bookings, now]
+  )
 
   const availableFloors = useMemo(() => {
     const set = new Set<number>([1])
@@ -294,14 +351,19 @@ export function FloorplanClient({
     setGuestPhone('')
     setGuestNotes('')
     setPartySize(2)
+    setMobileWalkInOpen(false)
   }
 
   const suggestions = useMemo(() => {
     if (walkInStep !== 'picking') return []
-    return findSuggestions(partySize, tables, positions, zones, bookings)
-  }, [walkInStep, partySize, tables, positions, zones, bookings])
+    return findSuggestions(partySize, tables, positions, zones, resolvedBookings)
+  }, [walkInStep, partySize, tables, positions, zones, resolvedBookings])
 
-  const selectedBooking = selectedTableId ? bookingByTableId.get(selectedTableId) ?? null : null
+  const selectedResolved = selectedTableId
+    ? resolvedBookings.get(selectedTableId) ?? null
+    : null
+  const selectedBooking =
+    selectedResolved?.current ?? selectedResolved?.upcoming ?? null
   const selectedTable = selectedTableId ? tableById.get(selectedTableId) ?? null : null
 
   const handleConfirm = (bookingId: string) => {
@@ -363,14 +425,15 @@ export function FloorplanClient({
       <header className="flex h-14 shrink-0 items-center justify-between bg-[#0f172a] px-4 text-white">
         <div className="flex items-center gap-3">
           <span className="font-logo text-xl font-bold tracking-tight">Napkind</span>
-          <span className="hidden text-xs uppercase tracking-wide text-white/60 sm:inline">
+          <span className="text-xs uppercase tracking-wide text-white/60">
             Restaurantvisning
           </span>
           <span className="hidden text-sm text-white/80 md:inline">· {restaurantName}</span>
         </div>
 
-        <div className="flex items-center gap-2 text-base tabular-nums">
+        <div className="flex items-center gap-2 text-sm tabular-nums text-white/90 sm:text-base">
           <Clock size={16} className="text-white/70" />
+          <span className="hidden sm:inline">{formatDanishDate(now)} · </span>
           <span>{formatClock(now)}</span>
         </div>
 
@@ -438,13 +501,14 @@ export function FloorplanClient({
             {currentPositions.map((p) => {
               const t = tableById.get(p.table_id)
               if (!t) return null
-              const booking = bookingByTableId.get(p.table_id) ?? null
+              const resolved = resolvedBookings.get(p.table_id) ?? null
               return (
                 <OpsTableCard
                   key={p.table_id}
                   position={p}
                   table={t}
-                  booking={booking}
+                  current={resolved?.current ?? null}
+                  upcoming={resolved?.upcoming ?? null}
                   cellSize={cellSize}
                   selected={selectedTableId === p.table_id}
                   onClick={() => setSelectedTableId(p.table_id)}
@@ -454,7 +518,7 @@ export function FloorplanClient({
           </div>
         </div>
 
-        <aside className="flex w-[280px] shrink-0 flex-col border-l border-[#e5e7eb] bg-white">
+        <aside className="hidden w-[280px] shrink-0 flex-col border-l border-[#e5e7eb] bg-white md:flex">
           {selectedTableId && selectedTable ? (
             <DetailPanel
               table={selectedTable}
@@ -492,6 +556,101 @@ export function FloorplanClient({
           )}
         </aside>
       </div>
+
+      {/* Mobile-only floating + button */}
+      {!selectedTableId && !mobileWalkInOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileWalkInOpen(true)}
+          className="fixed bottom-5 right-5 z-[55] inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#f59e0b] text-white shadow-lg hover:bg-[#d97706] transition md:hidden"
+          aria-label="Opret walk-in"
+        >
+          <Plus size={24} />
+        </button>
+      )}
+
+      {/* Mobile-only bottom sheet */}
+      <MobileSheet
+        open={Boolean(selectedTableId || mobileWalkInOpen)}
+        onClose={() => {
+          setSelectedTableId(null)
+          setMobileWalkInOpen(false)
+        }}
+      >
+        {selectedTableId && selectedTable ? (
+          <DetailPanel
+            table={selectedTable}
+            booking={selectedBooking}
+            pending={pending}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+            onClose={() => setSelectedTableId(null)}
+          />
+        ) : (
+          <WalkInPanel
+            step={walkInStep}
+            partySize={partySize}
+            setPartySize={setPartySize}
+            onFind={() => setWalkInStep('picking')}
+            onBackToSize={() => {
+              setWalkInStep('size')
+              setChosenTable(null)
+            }}
+            suggestions={suggestions}
+            onChoose={(t) => {
+              setChosenTable(t)
+              setWalkInStep('confirming')
+            }}
+            chosenTable={chosenTable}
+            guestName={guestName}
+            setGuestName={setGuestName}
+            guestPhone={guestPhone}
+            setGuestPhone={setGuestPhone}
+            guestNotes={guestNotes}
+            setGuestNotes={setGuestNotes}
+            pending={pending}
+            onSubmit={handleCreateWalkIn}
+          />
+        )}
+      </MobileSheet>
+    </div>
+  )
+}
+
+function MobileSheet({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={`fixed inset-0 z-[60] md:hidden ${
+        open ? '' : 'pointer-events-none'
+      }`}
+      aria-hidden={!open}
+    >
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
+          open ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+      <div
+        className={`absolute inset-x-0 bottom-0 h-[60vh] overflow-hidden rounded-t-2xl bg-white shadow-xl transition-transform duration-300 ${
+          open ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="flex justify-center py-2">
+          <div className="h-1.5 w-10 rounded-full bg-[#d1d5db]" />
+        </div>
+        <div className="flex h-[calc(60vh-1.5rem)] flex-col overflow-hidden">
+          {children}
+        </div>
+      </div>
     </div>
   )
 }
@@ -499,20 +658,22 @@ export function FloorplanClient({
 function OpsTableCard({
   position,
   table,
-  booking,
+  current,
+  upcoming,
   cellSize,
   selected,
   onClick,
 }: {
   position: TablePosition
   table: RestaurantTable
-  booking: TodayBooking | null
+  current: TodayBooking | null
+  upcoming: TodayBooking | null
   cellSize: number
   selected: boolean
   onClick: () => void
 }) {
-  const status: 'ledig' | 'afventer' | 'optaget' = booking
-    ? booking.status === 'pending'
+  const status: 'ledig' | 'afventer' | 'optaget' = current
+    ? current.status === 'pending'
       ? 'afventer'
       : 'optaget'
     : 'ledig'
@@ -530,7 +691,7 @@ function OpsTableCard({
   }
 
   const selectedRing = selected ? 'ring-2 ring-[#0ea5e9] ring-offset-1' : ''
-  const allergy = booking ? hasAllergy(booking.notes) : false
+  const allergy = current ? hasAllergy(current.notes) : false
 
   const numberFont = Math.max(11, Math.min(16, cellSize * 0.38))
   const nameFont = Math.max(9, Math.min(13, cellSize * 0.3))
@@ -587,39 +748,50 @@ function OpsTableCard({
             </div>
           </div>
 
-          {booking ? (
+          {current ? (
             <div className="mt-1 min-w-0 flex-1">
               <div className="truncate font-semibold" style={{ fontSize: nameFont }}>
-                {booking.guest_name}
+                {current.guest_name}
               </div>
               {tier === 'full' && (
                 <>
                   <div className="mt-0.5 text-[11px] opacity-80">
-                    {formatTime(booking.booking_time)} · {booking.party_size} pers.
+                    {formatTime(current.booking_time)} · {current.party_size} pers.
                   </div>
-                  {booking.notes && (
+                  {current.notes && (
                     <div
                       className="mt-0.5 flex items-center gap-1 truncate italic"
                       style={{ fontSize: badgeFont, color: allergy ? '#b91c1c' : '#6b7280' }}
                     >
                       {allergy && <AlertTriangle size={10} className="shrink-0" />}
-                      {booking.notes}
+                      {current.notes}
                     </div>
                   )}
                 </>
               )}
             </div>
+          ) : upcoming ? (
+            <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
           ) : (
             <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
           )}
 
-          <div className="mt-auto flex items-center">
+          <div className="mt-auto flex items-center justify-between gap-1">
             <span
               className={`inline-flex items-center rounded-full px-1.5 py-0.5 font-medium ${statusBadge[status].className}`}
               style={{ fontSize: badgeFont }}
             >
               {statusBadge[status].label}
             </span>
+            {!current && upcoming && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-[#fffbeb] px-1.5 py-0.5 font-medium text-[#b45309]"
+                style={{ fontSize: badgeFont }}
+              >
+                <Clock size={10} />
+                Res. {formatTime(upcoming.booking_time)}
+              </span>
+            )}
           </div>
         </>
       )}
@@ -831,6 +1003,12 @@ function WalkInPanel({
                             {s.table.capacity} pers.
                             {s.zoneName && <span> · {s.zoneName}</span>}
                           </div>
+                          {s.upcomingTime && (
+                            <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#b91c1c]">
+                              <Clock size={12} />
+                              Optaget igen {s.upcomingTime}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
