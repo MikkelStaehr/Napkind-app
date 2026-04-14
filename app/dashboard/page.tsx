@@ -10,25 +10,28 @@ const sections = [
     href: '/dashboard/calendar',
     icon: CalendarDays,
     label: 'Kalender',
-    description: 'Se og administrer dine bookinger',
+    description:
+      'Se bookinger dag for dag, uge og måned. Opret og administrer reservationer.',
   },
   {
     href: '/dashboard/bookings',
     icon: ClipboardList,
     label: 'Bookinger',
-    description: 'Oversigt over alle reservationer',
+    description:
+      'Oversigt over alle reservationer. Bekræft, annuller eller opret nye bookinger.',
   },
   {
     href: '/dashboard/tables',
     icon: LayoutGrid,
     label: 'Borde',
-    description: 'Administrer dine borde og kapacitet',
+    description:
+      'Opsæt din plantegning, administrer borde og se restaurantens layout.',
   },
   {
     href: '/dashboard/settings',
     icon: Settings,
     label: 'Indstillinger',
-    description: 'Restaurant indstillinger og integrationer',
+    description: 'Restaurantoplysninger, abonnement og kontoadministration.',
   },
 ]
 

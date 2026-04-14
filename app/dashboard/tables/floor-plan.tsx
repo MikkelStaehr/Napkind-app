@@ -89,6 +89,21 @@ type Resolution = 0.5 | 1
 type ShapeMode = 'rect' | 'draw'
 type WizardStep = 1 | 2 | 3
 type ItemRef = { kind: 'table' | 'zone' | 'element'; id: string }
+type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+
+const HANDLE_DELTAS: Record<
+  ResizeHandle,
+  { dxPos: number; dxSize: number; dyPos: number; dySize: number; cursor: string }
+> = {
+  nw: { dxPos: 1, dxSize: -1, dyPos: 1, dySize: -1, cursor: 'nwse-resize' },
+  n: { dxPos: 0, dxSize: 0, dyPos: 1, dySize: -1, cursor: 'ns-resize' },
+  ne: { dxPos: 0, dxSize: 1, dyPos: 1, dySize: -1, cursor: 'nesw-resize' },
+  e: { dxPos: 0, dxSize: 1, dyPos: 0, dySize: 0, cursor: 'ew-resize' },
+  se: { dxPos: 0, dxSize: 1, dyPos: 0, dySize: 1, cursor: 'nwse-resize' },
+  s: { dxPos: 0, dxSize: 0, dyPos: 0, dySize: 1, cursor: 'ns-resize' },
+  sw: { dxPos: 1, dxSize: -1, dyPos: 0, dySize: 1, cursor: 'nesw-resize' },
+  w: { dxPos: 1, dxSize: -1, dyPos: 0, dySize: 0, cursor: 'ew-resize' },
+}
 
 const DRAW_COLS = 40
 const DRAW_ROWS = 30
@@ -812,7 +827,11 @@ export function FloorPlan({
     setDragPreview(null)
   }
 
-  const handleResizeStart = (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => {
+  const handleResizeStart = (
+    ref: ItemRef,
+    handle: ResizeHandle,
+    e: ReactPointerEvent<HTMLDivElement>
+  ) => {
     e.preventDefault()
     e.stopPropagation()
     let startW = 0,
@@ -841,14 +860,23 @@ export function FloorPlan({
       startGX = el.grid_x
       startGY = el.grid_y
     }
+    const deltas = HANDLE_DELTAS[handle]
     const startX = e.clientX
     const startY = e.clientY
     const onMove = (ev: PointerEvent) => {
       const scaled = cellSize * zoom
       const dx = Math.round((ev.clientX - startX) / scaled)
       const dy = Math.round((ev.clientY - startY) / scaled)
+      const newW = startW + deltas.dxSize * dx
+      const newH = startH + deltas.dySize * dy
+      const widthCells = Math.max(1, newW)
+      const heightCells = Math.max(1, newH)
+      const dxAdjusted = deltas.dxSize !== 0 ? widthCells - startW : 0
+      const dyAdjusted = deltas.dySize !== 0 ? heightCells - startH : 0
+      const newX = startGX - deltas.dxPos * dxAdjusted
+      const newY = startGY - deltas.dyPos * dyAdjusted
       const box = clampBox(
-        { grid_x: startGX, grid_y: startGY, width: startW + dx, height: startH + dy },
+        { grid_x: newX, grid_y: newY, width: widthCells, height: heightCells },
         cols,
         rows
       )
@@ -1233,9 +1261,14 @@ function Step1Shape({
           <DrawCanvas
             activeCells={activeCells}
             setActiveCells={setActiveCells}
+            resolution={resolution}
             disabled={shapeMode !== 'draw'}
           />
         </ShapeCard>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-xs text-[#6b7280]">
+        📐 Tegn kun servicegulvet — dvs. det areal hvor gæster og personale færdes. Køkken, lager og personalefaciliteter tilføjes som elementer i næste trin.
       </div>
     </div>
   )
@@ -1350,10 +1383,12 @@ function RectForm({
 function DrawCanvas({
   activeCells,
   setActiveCells,
+  resolution,
   disabled,
 }: {
   activeCells: Set<string>
   setActiveCells: (s: Set<string>) => void
+  resolution: Resolution
   disabled: boolean
 }) {
   const [brushSize, setBrushSize] = useState<1 | 2>(1)
@@ -1477,6 +1512,27 @@ function DrawCanvas({
         </div>
       </div>
 
+      {activeCells.size > 0 && (() => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const k of activeCells) {
+          const { x, y } = parseCellKey(k)
+          if (x < minX) minX = x
+          if (y < minY) minY = y
+          if (x > maxX) maxX = x
+          if (y > maxY) maxY = y
+        }
+        const widthCells = maxX - minX + 1
+        const heightCells = maxY - minY + 1
+        const widthM = (widthCells * resolution).toFixed(1)
+        const heightM = (heightCells * resolution).toFixed(1)
+        const areaM2 = (activeCells.size * resolution * resolution).toFixed(1)
+        return (
+          <div className="mt-2 rounded-lg border border-[#e5e7eb] bg-[#fffbeb] px-3 py-1.5 text-[11px] text-[#92400e]">
+            Markeret areal: ca. {widthM} × {heightM} meter ({areaM2} m²)
+          </div>
+        )
+      })()}
+
       <div className="mt-2 text-[11px] text-[#6b7280]">
         {activeCells.size} celler markeret
         {activeCells.size > 0 && activeCells.size < DRAW_MIN_CELLS && (
@@ -1523,7 +1579,7 @@ type Step2Props = {
   onItemDragEnd: () => void
   onGridDragOver: (e: ReactDragEvent<HTMLDivElement>) => void
   onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
-  onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
+  onResizeStart: (ref: ItemRef, handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
   onDeleteSelected: () => void
   onRotateSelected: () => void
   zoom: number
@@ -1746,7 +1802,7 @@ function Step2Elements(props: Step2Props) {
                 }}
                 onDragStart={(e) => onItemDragStart({ kind: 'zone', id: z.id }, e)}
                 onDragEnd={onItemDragEnd}
-                onResizeStart={(e) => onResizeStart({ kind: 'zone', id: z.id }, e)}
+                onResizeStart={(handle, e) => onResizeStart({ kind: 'zone', id: z.id }, handle, e)}
               />
             ))}
             {elements.map((el) => (
@@ -1764,7 +1820,7 @@ function Step2Elements(props: Step2Props) {
                 }}
                 onDragStart={(e) => onItemDragStart({ kind: 'element', id: el.id }, e)}
                 onDragEnd={onItemDragEnd}
-                onResizeStart={(e) => onResizeStart({ kind: 'element', id: el.id }, e)}
+                onResizeStart={(handle, e) => onResizeStart({ kind: 'element', id: el.id }, handle, e)}
               />
             ))}
 
@@ -1838,7 +1894,7 @@ type Step3Props = {
   onItemDragEnd: () => void
   onGridDragOver: (e: ReactDragEvent<HTMLDivElement>) => void
   onGridDrop: (e: ReactDragEvent<HTMLDivElement>) => void
-  onResizeStart: (ref: ItemRef, e: ReactPointerEvent<HTMLDivElement>) => void
+  onResizeStart: (ref: ItemRef, handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
   onDeleteSelected: () => void
   zoom: number
   setZoom: (z: number) => void
@@ -2007,7 +2063,7 @@ function Step3Tables(props: Step3Props) {
                   }}
                   onDragStart={(e) => onItemDragStart({ kind: 'table', id: p.table_id }, e)}
                   onDragEnd={onItemDragEnd}
-                  onResizeStart={(e) => onResizeStart({ kind: 'table', id: p.table_id }, e)}
+                  onResizeStart={(handle, e) => onResizeStart({ kind: 'table', id: p.table_id }, handle, e)}
                 />
               )
             })}
@@ -2126,6 +2182,7 @@ function ViewMode(props: ViewModeProps) {
               selected={false}
               dragging={false}
               editable={false}
+              subtle
             />
           ))}
           {elements.map((el) => (
@@ -2275,8 +2332,10 @@ function GridSurface({
         overflow: 'hidden',
         backgroundColor: '#fafafa',
         backgroundImage:
-          'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
-        backgroundSize: `${cellSize}px ${cellSize}px`,
+          cellSize >= 24
+            ? 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)'
+            : undefined,
+        backgroundSize: cellSize >= 24 ? `${cellSize}px ${cellSize}px` : undefined,
         cursor: cursor ?? 'default',
         touchAction: 'none',
       }}
@@ -2288,6 +2347,36 @@ function GridSurface({
 }
 
 // ------------ Floor tabs ----------------------------------------------
+
+function ResizeHandles({
+  onResize,
+}: {
+  onResize: (handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const handles: { handle: ResizeHandle; style: React.CSSProperties }[] = [
+    { handle: 'nw', style: { left: -4, top: -4, cursor: 'nwse-resize' } },
+    { handle: 'n', style: { left: 'calc(50% - 4px)', top: -4, cursor: 'ns-resize' } },
+    { handle: 'ne', style: { right: -4, top: -4, cursor: 'nesw-resize' } },
+    { handle: 'e', style: { right: -4, top: 'calc(50% - 4px)', cursor: 'ew-resize' } },
+    { handle: 'se', style: { right: -4, bottom: -4, cursor: 'nwse-resize' } },
+    { handle: 's', style: { left: 'calc(50% - 4px)', bottom: -4, cursor: 'ns-resize' } },
+    { handle: 'sw', style: { left: -4, bottom: -4, cursor: 'nesw-resize' } },
+    { handle: 'w', style: { left: -4, top: 'calc(50% - 4px)', cursor: 'ew-resize' } },
+  ]
+  return (
+    <>
+      {handles.map(({ handle, style }) => (
+        <div
+          key={handle}
+          onPointerDown={(e) => onResize(handle, e)}
+          className="absolute h-2 w-2 border border-[#9ca3af] bg-white"
+          style={{ ...style, zIndex: 50 }}
+          aria-label={`Ændr størrelse (${handle})`}
+        />
+      ))}
+    </>
+  )
+}
 
 function ZoomControls({
   zoom,
@@ -2509,6 +2598,7 @@ function ZoneShape({
   selected,
   dragging,
   editable,
+  subtle = false,
   onClick,
   onDragStart,
   onDragEnd,
@@ -2519,12 +2609,14 @@ function ZoneShape({
   selected: boolean
   dragging: boolean
   editable: boolean
+  subtle?: boolean
   onClick?: (e: ReactMouseEvent) => void
   onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void
   onDragEnd?: () => void
-  onResizeStart?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onResizeStart?: (handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const cfg = ZONE_COLORS[zone.color]
+  const bg = subtle ? cfg.bg.replace(/0\.\d+\)$/, '0.15)') : cfg.bg
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
   return (
     <div
@@ -2540,7 +2632,7 @@ function ZoneShape({
         top: zone.grid_y * cellSize,
         width: zone.width * cellSize,
         height: zone.height * cellSize,
-        backgroundColor: cfg.bg,
+        backgroundColor: bg,
         borderColor: cfg.border,
       }}
     >
@@ -2553,11 +2645,7 @@ function ZoneShape({
         </span>
       </div>
       {editable && selected && onResizeStart && (
-        <div
-          onPointerDown={onResizeStart}
-          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
-          aria-label="Ændr størrelse"
-        />
+        <ResizeHandles onResize={onResizeStart} />
       )}
     </div>
   )
@@ -2582,7 +2670,7 @@ function ElementShape({
   onClick?: (e: ReactMouseEvent) => void
   onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void
   onDragEnd?: () => void
-  onResizeStart?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onResizeStart?: (handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const cfg = ELEMENT_CONFIGS[element.type]
   const Icon = cfg.icon
@@ -2639,11 +2727,7 @@ function ElementShape({
         )}
       </div>
       {editable && selected && onResizeStart && (
-        <div
-          onPointerDown={onResizeStart}
-          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
-          aria-label="Ændr størrelse"
-        />
+        <ResizeHandles onResize={onResizeStart} />
       )}
     </div>
   )
@@ -2668,7 +2752,7 @@ function SetupTableCard({
   onClick: (e: ReactMouseEvent) => void
   onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
   onDragEnd: () => void
-  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onResizeStart: (handle: ResizeHandle, e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
   const numberFont = Math.max(9, Math.min(14, cellSize * 0.35))
@@ -2705,13 +2789,7 @@ function SetupTableCard({
           {table.capacity} pers.
         </div>
       </div>
-      {selected && (
-        <div
-          onPointerDown={onResizeStart}
-          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
-          aria-label="Ændr størrelse"
-        />
-      )}
+      {selected && <ResizeHandles onResize={onResizeStart} />}
     </div>
   )
 }
