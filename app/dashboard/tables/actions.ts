@@ -86,30 +86,49 @@ function parseIntField(value: FormDataEntryValue | null, label: string) {
   return n
 }
 
-export async function createTable(formData: FormData) {
+export type CreatedTable = {
+  id: string
+  restaurant_id: string
+  table_number: number
+  capacity: number
+  priority: number
+  is_active: boolean
+  created_at: string
+}
+
+export async function createTable(formData: FormData): Promise<CreatedTable> {
   const tableNumber = parseIntField(formData.get('table_number'), 'Bordnummer')
   const capacity = parseIntField(formData.get('capacity'), 'Kapacitet')
-  const priority = parseIntField(formData.get('priority'), 'Prioritet')
-  const isActive = formData.get('is_active') === 'on'
+  const priorityRaw = formData.get('priority')
+  const priority =
+    priorityRaw === null || String(priorityRaw).trim() === ''
+      ? 10
+      : parseIntField(priorityRaw, 'Prioritet')
+  const isActive = formData.get('is_active') === null ? true : formData.get('is_active') === 'on'
 
   if (tableNumber <= 0) throw new Error('Bordnummer skal være større end 0')
   if (capacity <= 0) throw new Error('Kapacitet skal være større end 0')
 
   const { supabase, restaurantId } = await getRestaurantId()
 
-  const { error } = await supabase.from('restaurant_tables').insert({
-    restaurant_id: restaurantId,
-    table_number: tableNumber,
-    capacity,
-    priority,
-    is_active: isActive,
-  })
+  const { data, error } = await supabase
+    .from('restaurant_tables')
+    .insert({
+      restaurant_id: restaurantId,
+      table_number: tableNumber,
+      capacity,
+      priority,
+      is_active: isActive,
+    })
+    .select('id, restaurant_id, table_number, capacity, priority, is_active, created_at')
+    .single()
 
-  if (error) {
-    throw new Error('Kunne ikke oprette bord: ' + error.message)
+  if (error || !data) {
+    throw new Error('Kunne ikke oprette bord: ' + (error?.message ?? 'ukendt fejl'))
   }
 
   revalidatePath('/dashboard/tables')
+  return data as CreatedTable
 }
 
 export async function updateTable(id: string, formData: FormData) {
@@ -199,27 +218,33 @@ const VALID_ZONE_COLORS: ReadonlySet<string> = new Set([
 export async function saveTablePositions(positions: TablePositionInput[]) {
   const { supabase, restaurantId } = await getRestaurantId()
 
-  if (positions.length === 0) {
-    revalidatePath('/dashboard/tables')
-    return
+  const { error: deleteError } = await supabase
+    .from('restaurant_table_positions')
+    .delete()
+    .eq('restaurant_id', restaurantId)
+
+  if (deleteError) {
+    throw new Error('Kunne ikke rydde gamle positioner: ' + deleteError.message)
   }
 
-  const rows = positions.map((p) => ({
-    restaurant_id: restaurantId,
-    table_id: p.table_id,
-    floor: Math.max(1, Math.floor(p.floor)),
-    grid_x: Math.max(0, Math.floor(p.grid_x)),
-    grid_y: Math.max(0, Math.floor(p.grid_y)),
-    width: Math.max(1, Math.floor(p.width)),
-    height: Math.max(1, Math.floor(p.height)),
-  }))
+  if (positions.length > 0) {
+    const rows = positions.map((p) => ({
+      restaurant_id: restaurantId,
+      table_id: p.table_id,
+      floor: Math.max(1, Math.floor(p.floor)),
+      grid_x: Math.max(0, Math.floor(p.grid_x)),
+      grid_y: Math.max(0, Math.floor(p.grid_y)),
+      width: Math.max(1, Math.floor(p.width)),
+      height: Math.max(1, Math.floor(p.height)),
+    }))
 
-  const { error } = await supabase
-    .from('restaurant_table_positions')
-    .upsert(rows, { onConflict: 'restaurant_id,table_id' })
+    const { error: insertError } = await supabase
+      .from('restaurant_table_positions')
+      .insert(rows)
 
-  if (error) {
-    throw new Error('Kunne ikke gemme positioner: ' + error.message)
+    if (insertError) {
+      throw new Error('Kunne ikke gemme positioner: ' + insertError.message)
+    }
   }
 
   revalidatePath('/dashboard/tables')
@@ -234,34 +259,40 @@ export async function saveFloorElements(elements: FloorElementInput[]) {
     }
   }
 
-  if (elements.length === 0) {
-    revalidatePath('/dashboard/tables')
-    return
+  const { error: deleteError } = await supabase
+    .from('restaurant_floor_elements')
+    .delete()
+    .eq('restaurant_id', restaurantId)
+
+  if (deleteError) {
+    throw new Error('Kunne ikke rydde gamle elementer: ' + deleteError.message)
   }
 
-  const rows = elements.map((e) => {
-    const rot = ((Math.floor(e.rotation ?? 0) % 360) + 360) % 360
-    const snapped = rot - (rot % 90)
-    return {
-      id: e.id,
-      restaurant_id: restaurantId,
-      type: e.type,
-      floor: Math.max(1, Math.floor(e.floor)),
-      grid_x: Math.max(0, Math.floor(e.grid_x)),
-      grid_y: Math.max(0, Math.floor(e.grid_y)),
-      width: Math.max(1, Math.floor(e.width)),
-      height: Math.max(1, Math.floor(e.height)),
-      rotation: snapped,
-      label: e.label,
+  if (elements.length > 0) {
+    const rows = elements.map((e) => {
+      const rot = ((Math.floor(e.rotation ?? 0) % 360) + 360) % 360
+      const snapped = rot - (rot % 90)
+      return {
+        id: e.id,
+        restaurant_id: restaurantId,
+        type: e.type,
+        floor: Math.max(1, Math.floor(e.floor)),
+        grid_x: Math.max(0, Math.floor(e.grid_x)),
+        grid_y: Math.max(0, Math.floor(e.grid_y)),
+        width: Math.max(1, Math.floor(e.width)),
+        height: Math.max(1, Math.floor(e.height)),
+        rotation: snapped,
+        label: e.label,
+      }
+    })
+
+    const { error: insertError } = await supabase
+      .from('restaurant_floor_elements')
+      .insert(rows)
+
+    if (insertError) {
+      throw new Error('Kunne ikke gemme elementer: ' + insertError.message)
     }
-  })
-
-  const { error } = await supabase
-    .from('restaurant_floor_elements')
-    .upsert(rows, { onConflict: 'id' })
-
-  if (error) {
-    throw new Error('Kunne ikke gemme elementer: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')
@@ -295,30 +326,36 @@ export async function saveZones(zones: ZoneInput[]) {
     }
   }
 
-  if (zones.length === 0) {
-    revalidatePath('/dashboard/tables')
-    return
+  const { error: deleteError } = await supabase
+    .from('restaurant_zones')
+    .delete()
+    .eq('restaurant_id', restaurantId)
+
+  if (deleteError) {
+    throw new Error('Kunne ikke rydde gamle zoner: ' + deleteError.message)
   }
 
-  const rows = zones.map((z) => ({
-    id: z.id,
-    restaurant_id: restaurantId,
-    name: z.name.trim(),
-    priority: Math.max(1, Math.floor(z.priority)),
-    color: z.color,
-    floor: Math.max(1, Math.floor(z.floor)),
-    grid_x: Math.max(0, Math.floor(z.grid_x)),
-    grid_y: Math.max(0, Math.floor(z.grid_y)),
-    width: Math.max(1, Math.floor(z.width)),
-    height: Math.max(1, Math.floor(z.height)),
-  }))
+  if (zones.length > 0) {
+    const rows = zones.map((z) => ({
+      id: z.id,
+      restaurant_id: restaurantId,
+      name: z.name.trim(),
+      priority: Math.max(1, Math.floor(z.priority)),
+      color: z.color,
+      floor: Math.max(1, Math.floor(z.floor)),
+      grid_x: Math.max(0, Math.floor(z.grid_x)),
+      grid_y: Math.max(0, Math.floor(z.grid_y)),
+      width: Math.max(1, Math.floor(z.width)),
+      height: Math.max(1, Math.floor(z.height)),
+    }))
 
-  const { error } = await supabase
-    .from('restaurant_zones')
-    .upsert(rows, { onConflict: 'id' })
+    const { error: insertError } = await supabase
+      .from('restaurant_zones')
+      .insert(rows)
 
-  if (error) {
-    throw new Error('Kunne ikke gemme zoner: ' + error.message)
+    if (insertError) {
+      throw new Error('Kunne ikke gemme zoner: ' + insertError.message)
+    }
   }
 
   revalidatePath('/dashboard/tables')

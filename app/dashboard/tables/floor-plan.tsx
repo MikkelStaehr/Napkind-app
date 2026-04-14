@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import type { RestaurantTable } from '@/app/types/database'
 import {
+  createTable,
   saveFloorElements,
   saveTablePositions,
   saveZones,
@@ -315,6 +316,7 @@ export function FloorPlan({
   const [localPositions, setLocalPositions] = useState(() => positionsToMap(positions))
   const [localZones, setLocalZones] = useState(() => zonesToMap(zones))
   const [localElements, setLocalElements] = useState(() => elementsToMap(elements))
+  const [extraTables, setExtraTables] = useState<RestaurantTable[]>([])
 
   const [currentFloor, setCurrentFloor] = useState(1)
   const [extraFloors, setExtraFloors] = useState<number[]>([])
@@ -418,8 +420,13 @@ export function FloorPlan({
   const tableById = useMemo(() => {
     const m = new Map<string, RestaurantTable>()
     for (const t of tables) m.set(t.id, t)
+    for (const t of extraTables) {
+      if (!m.has(t.id)) m.set(t.id, t)
+    }
     return m
-  }, [tables])
+  }, [tables, extraTables])
+
+  const allTables = useMemo(() => Array.from(tableById.values()), [tableById])
 
   const bookingByTableId = useMemo(() => {
     const m = new Map<string, TodayBooking>()
@@ -442,7 +449,21 @@ export function FloorPlan({
   }, [positionsList, zonesList, elementsList, extraFloors, currentFloor])
 
   const placedTableIds = new Set(positionsList.map((p) => p.table_id))
-  const unplaced = tables.filter((t) => !placedTableIds.has(t.id))
+  const unplaced = allTables.filter((t) => !placedTableIds.has(t.id))
+
+  const nextTableNumber =
+    allTables.length > 0
+      ? Math.max(...allTables.map((t) => t.table_number)) + 1
+      : 1
+
+  const handleCreateTable = async (formData: FormData) => {
+    const created = await createTable(formData)
+    setExtraTables((prev) => [
+      ...prev.filter((t) => t.id !== created.id),
+      created as RestaurantTable,
+    ])
+    return created
+  }
 
   const currentPositions = positionsList.filter((p) => p.floor === currentFloor)
   const currentZones = zonesList
@@ -1010,6 +1031,8 @@ export function FloorPlan({
             onDeleteSelected={handleDeleteSelected}
             zoom={zoom}
             setZoom={setZoom}
+            nextTableNumber={nextTableNumber}
+            onCreateTable={handleCreateTable}
           />
         )}
 
@@ -1819,6 +1842,8 @@ type Step3Props = {
   onDeleteSelected: () => void
   zoom: number
   setZoom: (z: number) => void
+  nextTableNumber: number
+  onCreateTable: (formData: FormData) => Promise<unknown>
 }
 
 function Step3Tables(props: Step3Props) {
@@ -1854,6 +1879,8 @@ function Step3Tables(props: Step3Props) {
     onDeleteSelected,
     zoom,
     setZoom,
+    nextTableNumber,
+    onCreateTable,
   } = props
 
   return (
@@ -1908,6 +1935,13 @@ function Step3Tables(props: Step3Props) {
               Fjern bord fra grid
             </button>
           )}
+
+          <div className="border-t border-[#e5e7eb] pt-3">
+            <NewTableForm
+              nextTableNumber={nextTableNumber}
+              onCreate={onCreateTable}
+            />
+          </div>
         </aside>
 
         <ZoomedScrollGrid
@@ -2932,5 +2966,129 @@ function ZoneFormModal({
         </form>
       </div>
     </div>
+  )
+}
+
+function NewTableForm({
+  nextTableNumber,
+  onCreate,
+}: {
+  nextTableNumber: number
+  onCreate: (formData: FormData) => Promise<unknown>
+}) {
+  const [open, setOpen] = useState(false)
+  const [tableNumber, setTableNumber] = useState(nextTableNumber)
+  const [capacity, setCapacity] = useState(2)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (!open) setTableNumber(nextTableNumber)
+  }, [nextTableNumber, open])
+
+  const reset = () => {
+    setTableNumber(nextTableNumber)
+    setCapacity(2)
+    setError(null)
+    setOpen(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (tableNumber <= 0) {
+      setError('Bordnummer skal være > 0')
+      return
+    }
+    if (capacity < 1 || capacity > 20) {
+      setError('Kapacitet skal være mellem 1 og 20')
+      return
+    }
+    setError(null)
+    setPending(true)
+    try {
+      const fd = new FormData()
+      fd.set('table_number', String(tableNumber))
+      fd.set('capacity', String(capacity))
+      await onCreate(fd)
+      reset()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke oprette bord')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#f59e0b] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#b45309] hover:bg-[#fffbeb] transition"
+      >
+        <Plus size={12} />
+        Nyt bord
+      </button>
+    )
+  }
+
+  const inputClass =
+    'w-full rounded-lg border border-[#e5e7eb] bg-white px-2 py-1.5 text-xs text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]'
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2">
+      {error && (
+        <div className="rounded border border-[#fecaca] bg-[#fef2f2] px-2 py-1 text-[10px] text-[#b91c1c]">
+          {error}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="mb-0.5 block text-[10px] font-medium text-[#6b7280]">
+            Bord nr.
+          </span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={tableNumber}
+            onChange={(e) => setTableNumber(Number(e.target.value))}
+            required
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-0.5 block text-[10px] font-medium text-[#6b7280]">
+            Kapacitet
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            value={capacity}
+            onChange={(e) => setCapacity(Number(e.target.value))}
+            required
+            className={inputClass}
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={reset}
+          disabled={pending}
+          className="text-[11px] font-medium text-[#6b7280] hover:text-[#111827] disabled:opacity-50"
+        >
+          Annuller
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-[#f59e0b] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
+        >
+          {pending ? 'Opretter…' : 'Opret'}
+        </button>
+      </div>
+    </form>
   )
 }
