@@ -48,7 +48,7 @@ const ALLERGY_KEYWORDS = [
   'sesam',
 ]
 
-const CELL_SIZE_MIN = 24
+const CELL_SIZE_MIN = 12
 const MAX_PARTY_SIZE = 20
 
 const ZONE_COLORS: Record<ZoneColor, { bg: string; border: string }> = {
@@ -285,7 +285,7 @@ export function FloorplanClient({
   const [panelTab, setPanelTab] = useState<'walkin' | 'oversigt'>('walkin')
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(800)
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000)
@@ -297,7 +297,8 @@ export function FloorplanClient({
     if (!el || typeof ResizeObserver === 'undefined') return
     const measure = () => {
       const w = el.clientWidth
-      if (w > 0) setContainerWidth(w)
+      const h = el.clientHeight
+      if (w > 0 && h > 0) setContainerSize({ width: w, height: h })
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -388,7 +389,13 @@ export function FloorplanClient({
     return { cols: maxX + 2, rows: maxY + 2 }
   }, [currentPositions, currentZones, currentElements])
 
-  const cellSize = Math.max(CELL_SIZE_MIN, Math.floor(containerWidth / bounds.cols))
+  const cellSize = Math.max(
+    CELL_SIZE_MIN,
+    Math.min(
+      Math.floor(containerSize.width / bounds.cols),
+      Math.floor(containerSize.height / bounds.rows)
+    )
+  )
   const gridPxWidth = bounds.cols * cellSize
   const gridPxHeight = bounds.rows * cellSize
 
@@ -613,11 +620,11 @@ export function FloorplanClient({
       <div className="flex min-h-0 flex-1">
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto bg-[#f9fafb] p-4"
+          className="flex flex-1 items-center justify-center overflow-hidden bg-[#f9fafb] p-4"
           style={{ minWidth: 0 }}
         >
           <div
-            className="relative mx-auto rounded-xl border border-[#e5e7eb] bg-white"
+            className="relative rounded-xl border border-[#e5e7eb] bg-white"
             style={{
               width: gridPxWidth,
               height: gridPxHeight,
