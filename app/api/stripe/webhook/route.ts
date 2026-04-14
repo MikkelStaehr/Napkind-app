@@ -69,10 +69,6 @@ async function handleSubscription(
   const periodEndsAt =
     typeof periodEnd === 'number' ? new Date(periodEnd * 1000).toISOString() : null
 
-  console.log('[stripe webhook] Subscription object keys:', Object.keys(subscription))
-  console.log('[stripe webhook] Period end raw:', periodEnd)
-  console.log('[stripe webhook] Full subscription:', JSON.stringify(subscription, null, 2))
-
   const { error } = await supabaseAdmin
     .from('restaurants')
     .update({
