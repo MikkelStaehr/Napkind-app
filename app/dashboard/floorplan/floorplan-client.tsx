@@ -282,6 +282,7 @@ export function FloorplanClient({
   const [guestPhone, setGuestPhone] = useState('')
   const [guestNotes, setGuestNotes] = useState('')
   const [mobileWalkInOpen, setMobileWalkInOpen] = useState(false)
+  const [panelTab, setPanelTab] = useState<'walkin' | 'oversigt'>('walkin')
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -315,6 +316,53 @@ export function FloorplanClient({
     [bookings, now]
   )
 
+  const overviewRows = useMemo(() => {
+    const positionByTable = new Map<string, TablePosition>()
+    for (const p of positions) positionByTable.set(p.table_id, p)
+
+    const STATUS_RANK: Record<'optaget' | 'afventer' | 'ledig', number> = {
+      optaget: 0,
+      afventer: 1,
+      ledig: 2,
+    }
+
+    return tables
+      .filter((t) => t.is_active)
+      .map((t) => {
+        const resolved = resolvedBookings.get(t.id) ?? null
+        const status: 'optaget' | 'afventer' | 'ledig' = resolved?.current
+          ? resolved.current.status === 'pending'
+            ? 'afventer'
+            : 'optaget'
+          : 'ledig'
+        const pos = positionByTable.get(t.id)
+        let zoneName: string | null = null
+        let zonePriority = Number.POSITIVE_INFINITY
+        if (pos) {
+          for (const z of zones) {
+            if (z.floor !== pos.floor) continue
+            if (overlaps(pos, z) && z.priority < zonePriority) {
+              zonePriority = z.priority
+              zoneName = z.name
+            }
+          }
+        }
+        return {
+          table: t,
+          status,
+          current: resolved?.current ?? null,
+          upcoming: resolved?.upcoming ?? null,
+          zoneName,
+        }
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return STATUS_RANK[a.status] - STATUS_RANK[b.status]
+        }
+        return a.table.table_number - b.table.table_number
+      })
+  }, [tables, positions, zones, resolvedBookings])
+
   const availableFloors = useMemo(() => {
     const set = new Set<number>([1])
     for (const p of positions) set.add(p.floor)
@@ -343,6 +391,18 @@ export function FloorplanClient({
   const cellSize = Math.max(CELL_SIZE_MIN, Math.floor(containerWidth / bounds.cols))
   const gridPxWidth = bounds.cols * cellSize
   const gridPxHeight = bounds.rows * cellSize
+
+  const handleTableClick = (table: RestaurantTable, current: TodayBooking | null) => {
+    if (current) {
+      setSelectedTableId(table.id)
+      return
+    }
+    setSelectedTableId(null)
+    setChosenTable(table)
+    setWalkInStep('confirming')
+    setPanelTab('walkin')
+    setMobileWalkInOpen(true)
+  }
 
   const resetWalkIn = () => {
     setWalkInStep('size')
@@ -387,6 +447,85 @@ export function FloorplanClient({
         setError(e instanceof Error ? e.message : 'Kunne ikke annullere booking')
       }
     })
+  }
+
+  const renderPanel = (): React.ReactNode => {
+    if (selectedTableId && selectedTable) {
+      return (
+        <DetailPanel
+          table={selectedTable}
+          booking={selectedBooking}
+          pending={pending}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          onClose={() => setSelectedTableId(null)}
+        />
+      )
+    }
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="border-b border-[#e5e7eb] px-3 py-2">
+          <div className="inline-flex w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-0.5">
+            {(
+              [
+                { v: 'walkin', l: 'Walk-in' },
+                { v: 'oversigt', l: 'Oversigt' },
+              ] as { v: typeof panelTab; l: string }[]
+            ).map((o) => {
+              const active = o.v === panelTab
+              return (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => setPanelTab(o.v)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    active
+                      ? 'bg-[#f59e0b] text-white shadow-sm'
+                      : 'text-[#6b7280] hover:text-[#111827]'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          {panelTab === 'walkin' ? (
+            <WalkInPanel
+              step={walkInStep}
+              partySize={partySize}
+              setPartySize={setPartySize}
+              onFind={() => setWalkInStep('picking')}
+              onBackToSize={() => {
+                setWalkInStep('size')
+                setChosenTable(null)
+              }}
+              suggestions={suggestions}
+              onChoose={(t) => {
+                setChosenTable(t)
+                setWalkInStep('confirming')
+              }}
+              chosenTable={chosenTable}
+              guestName={guestName}
+              setGuestName={setGuestName}
+              guestPhone={guestPhone}
+              setGuestPhone={setGuestPhone}
+              guestNotes={guestNotes}
+              setGuestNotes={setGuestNotes}
+              pending={pending}
+              onSubmit={handleCreateWalkIn}
+            />
+          ) : (
+            <OversigtList
+              rows={overviewRows}
+              onSelect={(tableId) => setSelectedTableId(tableId)}
+            />
+          )}
+        </div>
+      </div>
+    )
   }
 
   const handleCreateWalkIn = () => {
@@ -511,7 +650,7 @@ export function FloorplanClient({
                   upcoming={resolved?.upcoming ?? null}
                   cellSize={cellSize}
                   selected={selectedTableId === p.table_id}
-                  onClick={() => setSelectedTableId(p.table_id)}
+                  onClick={() => handleTableClick(t, resolved?.current ?? null)}
                 />
               )
             })}
@@ -519,41 +658,7 @@ export function FloorplanClient({
         </div>
 
         <aside className="hidden w-[280px] shrink-0 flex-col border-l border-[#e5e7eb] bg-white md:flex">
-          {selectedTableId && selectedTable ? (
-            <DetailPanel
-              table={selectedTable}
-              booking={selectedBooking}
-              pending={pending}
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
-              onClose={() => setSelectedTableId(null)}
-            />
-          ) : (
-            <WalkInPanel
-              step={walkInStep}
-              partySize={partySize}
-              setPartySize={setPartySize}
-              onFind={() => setWalkInStep('picking')}
-              onBackToSize={() => {
-                setWalkInStep('size')
-                setChosenTable(null)
-              }}
-              suggestions={suggestions}
-              onChoose={(t) => {
-                setChosenTable(t)
-                setWalkInStep('confirming')
-              }}
-              chosenTable={chosenTable}
-              guestName={guestName}
-              setGuestName={setGuestName}
-              guestPhone={guestPhone}
-              setGuestPhone={setGuestPhone}
-              guestNotes={guestNotes}
-              setGuestNotes={setGuestNotes}
-              pending={pending}
-              onSubmit={handleCreateWalkIn}
-            />
-          )}
+          {renderPanel()}
         </aside>
       </div>
 
@@ -577,43 +682,102 @@ export function FloorplanClient({
           setMobileWalkInOpen(false)
         }}
       >
-        {selectedTableId && selectedTable ? (
-          <DetailPanel
-            table={selectedTable}
-            booking={selectedBooking}
-            pending={pending}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-            onClose={() => setSelectedTableId(null)}
-          />
-        ) : (
-          <WalkInPanel
-            step={walkInStep}
-            partySize={partySize}
-            setPartySize={setPartySize}
-            onFind={() => setWalkInStep('picking')}
-            onBackToSize={() => {
-              setWalkInStep('size')
-              setChosenTable(null)
-            }}
-            suggestions={suggestions}
-            onChoose={(t) => {
-              setChosenTable(t)
-              setWalkInStep('confirming')
-            }}
-            chosenTable={chosenTable}
-            guestName={guestName}
-            setGuestName={setGuestName}
-            guestPhone={guestPhone}
-            setGuestPhone={setGuestPhone}
-            guestNotes={guestNotes}
-            setGuestNotes={setGuestNotes}
-            pending={pending}
-            onSubmit={handleCreateWalkIn}
-          />
-        )}
+        {renderPanel()}
       </MobileSheet>
     </div>
+  )
+}
+
+type OverviewRow = {
+  table: RestaurantTable
+  status: 'optaget' | 'afventer' | 'ledig'
+  current: TodayBooking | null
+  upcoming: TodayBooking | null
+  zoneName: string | null
+}
+
+function OversigtList({
+  rows,
+  onSelect,
+}: {
+  rows: OverviewRow[]
+  onSelect: (tableId: string) => void
+}) {
+  const statusDot: Record<OverviewRow['status'], string> = {
+    optaget: 'bg-[#10b981]',
+    afventer: 'bg-[#f59e0b]',
+    ledig: 'bg-[#9ca3af]',
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-sm text-[#6b7280]">
+        Ingen borde endnu
+      </div>
+    )
+  }
+
+  return (
+    <ul className="h-full overflow-y-auto divide-y divide-[#e5e7eb]">
+      {rows.map((r, i) => {
+        const allergy = r.current ? hasAllergy(r.current.notes) : false
+        const priority = r.table.priority
+        return (
+          <li key={r.table.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(r.table.id)}
+              className={`flex min-h-12 w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fffbeb] ${
+                i % 2 === 1 ? 'bg-[#f9fafb]' : 'bg-white'
+              }`}
+            >
+              <span
+                className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${statusDot[r.status]}`}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-[#111827]">
+                    Bord {r.table.table_number}
+                  </span>
+                  <span className="rounded-full bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-medium text-[#374151]">
+                    {r.table.capacity} pers.
+                  </span>
+                  {typeof priority === 'number' && priority < 10 && (
+                    <span className="rounded-full bg-[#ede9fe] px-1.5 py-0.5 text-[10px] font-medium text-[#5b21b6]">
+                      Prio {priority}
+                    </span>
+                  )}
+                  {allergy && <AlertTriangle size={12} className="text-[#b91c1c]" />}
+                </div>
+
+                {r.zoneName && (
+                  <div className="mt-0.5 text-[11px] text-[#6b7280]">{r.zoneName}</div>
+                )}
+
+                {r.current ? (
+                  <div className="mt-0.5 text-xs text-[#111827]">
+                    <span className="font-medium">{r.current.guest_name}</span>{' '}
+                    <span className="text-[#6b7280]">
+                      · {formatTime(r.current.booking_time)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-0.5 text-xs text-[#6b7280]">Ledig</div>
+                )}
+
+                {r.upcoming && !r.current && (
+                  <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#b45309]">
+                    <Clock size={10} />
+                    Res. {formatTime(r.upcoming.booking_time)}
+                  </div>
+                )}
+              </div>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
