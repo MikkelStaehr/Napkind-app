@@ -81,17 +81,17 @@ export async function POST(request: Request) {
     }
   }
 
-  const origin =
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
     request.headers.get('origin') ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
     'http://localhost:3000'
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/dashboard?upgraded=true`,
-    cancel_url: `${origin}/upgrade`,
+    success_url: `${appUrl}/dashboard?upgraded=true`,
+    cancel_url: `${appUrl}/upgrade`,
     metadata: { restaurant_id: restaurantId },
     subscription_data: {
       metadata: { restaurant_id: restaurantId },

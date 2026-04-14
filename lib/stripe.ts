@@ -4,13 +4,13 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 export const PLANS = {
   monthly: {
-    priceId: 'price_1TM1jWPb9akb1LSwjWPH5p25',
+    priceId: 'price_1TM2QvPY8Mt5hhgf9ZAJCiLS',
     name: 'Månedlig',
     amount: 149,
     interval: 'month' as const,
   },
   yearly: {
-    priceId: 'price_1TM1joPb9akb1LSwZQtMVZcK',
+    priceId: 'price_1TM2QbPY8Mt5hhgfHY5g3loT',
     name: 'Årlig',
     amount: 999,
     interval: 'year' as const,
