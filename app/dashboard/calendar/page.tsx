@@ -86,7 +86,7 @@ export default async function CalendarPage() {
     <div className="min-h-full flex-1 bg-[#f9fafb]">
       <header className="border-b border-[#e5e7eb] bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="font-logo text-xl tracking-tight text-[#111827]">
+          <Link href="/dashboard" className="font-logo text-2xl tracking-tight text-[#111827]">
             Napkind
           </Link>
           <div className="flex items-center gap-4">

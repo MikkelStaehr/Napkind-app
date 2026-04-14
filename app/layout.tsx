@@ -12,7 +12,7 @@ const outfit = localFont({
 
 const boska = localFont({
   src: [
-    { path: "./fonts/Boska-Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/Boska-Bold.woff2", weight: "700", style: "normal" },
   ],
   variable: "--font-boska",
   display: "swap",
