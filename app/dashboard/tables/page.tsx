@@ -169,6 +169,7 @@ export default async function TablesPage() {
             zones={zones}
             elements={elements}
             todayBookings={todayBookings}
+            restaurantId={link.restaurant_id as string}
           />
         </div>
       </main>

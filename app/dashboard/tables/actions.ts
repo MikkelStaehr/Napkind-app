@@ -147,7 +147,7 @@ export type TablePositionInput = {
   height: number
 }
 
-export type FloorElementType = 'kitchen' | 'door' | 'bar' | 'window' | 'wall'
+export type FloorElementType = 'kitchen' | 'door' | 'bar' | 'window' | 'wall' | 'toilet'
 
 export type FloorElementInput = {
   id: string
@@ -180,6 +180,7 @@ const VALID_ELEMENT_TYPES: ReadonlySet<string> = new Set([
   'bar',
   'window',
   'wall',
+  'toilet',
 ])
 
 const VALID_ZONE_COLORS: ReadonlySet<string> = new Set([

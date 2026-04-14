@@ -18,6 +18,7 @@ type Props = {
   zones: Zone[]
   elements: FloorElement[]
   todayBookings: TodayBooking[]
+  restaurantId: string
 }
 
 type DraftState =
@@ -33,6 +34,7 @@ export function TablesClient({
   zones,
   elements,
   todayBookings,
+  restaurantId,
 }: Props) {
   const [view, setView] = useState<ViewMode>('list')
   const [draft, setDraft] = useState<DraftState>({ kind: 'closed' })
@@ -125,6 +127,7 @@ export function TablesClient({
           zones={zones}
           elements={elements}
           todayBookings={todayBookings}
+          restaurantId={restaurantId}
         />
       ) : (
         <ListView

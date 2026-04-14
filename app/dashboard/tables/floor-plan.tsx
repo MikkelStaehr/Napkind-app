@@ -11,6 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import {
+  Accessibility,
   AlertTriangle,
   Check,
   ChefHat,
@@ -18,6 +19,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Ruler,
   Save,
   Trash2,
   Users,
@@ -86,7 +88,19 @@ export type TodayBooking = {
 }
 
 const CELL_SIZE = 48
-const GRID_SIZE = 20
+const DEFAULT_DIMS: Dimensions = { lengthM: 20, widthM: 15, resolution: 0.5 }
+const MIN_METERS = 4
+const MAX_METERS = 100
+
+type Resolution = 0.25 | 0.5 | 1
+type Dimensions = { lengthM: number; widthM: number; resolution: Resolution }
+
+function dimsToGrid(d: Dimensions): { cols: number; rows: number } {
+  return {
+    cols: Math.max(1, Math.round(d.lengthM / d.resolution)),
+    rows: Math.max(1, Math.round(d.widthM / d.resolution)),
+  }
+}
 
 type ItemKind = 'table' | 'zone' | 'element'
 type ItemRef = { kind: ItemKind; id: string }
@@ -188,6 +202,16 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     textColor: '#ffffff',
     icon: null,
   },
+  toilet: {
+    label: 'Toilet',
+    menuLabel: '🚻 Toilet',
+    defaultSize: { w: 2, h: 2 },
+    bg: '#ccfbf1',
+    border: '#14b8a6',
+    borderStyle: 'solid',
+    textColor: '#115e59',
+    icon: Accessibility,
+  },
 }
 
 function defaultSizeForCapacity(capacity: number): { w: number; h: number } {
@@ -197,16 +221,15 @@ function defaultSizeForCapacity(capacity: number): { w: number; h: number } {
   return { w: 4, h: 3 }
 }
 
-function clampBox(p: {
-  grid_x: number
-  grid_y: number
-  width: number
-  height: number
-}) {
-  const width = Math.max(1, Math.min(GRID_SIZE, Math.floor(p.width)))
-  const height = Math.max(1, Math.min(GRID_SIZE, Math.floor(p.height)))
-  const grid_x = Math.max(0, Math.min(GRID_SIZE - width, Math.floor(p.grid_x)))
-  const grid_y = Math.max(0, Math.min(GRID_SIZE - height, Math.floor(p.grid_y)))
+function clampBox(
+  p: { grid_x: number; grid_y: number; width: number; height: number },
+  cols: number,
+  rows: number
+) {
+  const width = Math.max(1, Math.min(cols, Math.floor(p.width)))
+  const height = Math.max(1, Math.min(rows, Math.floor(p.height)))
+  const grid_x = Math.max(0, Math.min(cols - width, Math.floor(p.grid_x)))
+  const grid_y = Math.max(0, Math.min(rows - height, Math.floor(p.grid_y)))
   return { grid_x, grid_y, width, height }
 }
 
@@ -245,14 +268,18 @@ export function FloorPlan({
   zones,
   elements,
   todayBookings,
+  restaurantId,
 }: {
   tables: RestaurantTable[]
   positions: TablePosition[]
   zones: Zone[]
   elements: FloorElement[]
   todayBookings: TodayBooking[]
+  restaurantId: string
 }) {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [dims, setDims] = useState<Dimensions>(DEFAULT_DIMS)
+  const [dimModalOpen, setDimModalOpen] = useState(false)
   const [currentFloor, setCurrentFloor] = useState(1)
   const [extraFloors, setExtraFloors] = useState<number[]>([])
   const [localPositions, setLocalPositions] = useState(() => positionsToMap(positions))
@@ -283,6 +310,45 @@ export function FloorPlan({
       setLocalElements(elementsToMap(elements))
     }
   }, [positions, zones, elements, mode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const key = `napkind_floor_dimensions_${restaurantId}`
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as Partial<Dimensions>
+      const lengthM = Number(parsed.lengthM)
+      const widthM = Number(parsed.widthM)
+      const resolution = parsed.resolution
+      if (
+        Number.isFinite(lengthM) &&
+        lengthM >= MIN_METERS &&
+        lengthM <= MAX_METERS &&
+        Number.isFinite(widthM) &&
+        widthM >= MIN_METERS &&
+        widthM <= MAX_METERS &&
+        (resolution === 0.25 || resolution === 0.5 || resolution === 1)
+      ) {
+        setDims({ lengthM, widthM, resolution })
+      }
+    } catch {}
+  }, [restaurantId])
+
+  const { cols, rows } = useMemo(() => dimsToGrid(dims), [dims])
+  const gridPxWidth = cols * CELL_SIZE
+  const gridPxHeight = rows * CELL_SIZE
+
+  const handleSaveDims = (newDims: Dimensions) => {
+    setDims(newDims)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        `napkind_floor_dimensions_${restaurantId}`,
+        JSON.stringify(newDims)
+      )
+    }
+    setDimModalOpen(false)
+  }
 
   const tableById = useMemo(() => {
     const m = new Map<string, RestaurantTable>()
@@ -434,12 +500,16 @@ export function FloorPlan({
   const handleAddElement = (type: FloorElementType) => {
     const cfg = ELEMENT_CONFIGS[type]
     const id = newId()
-    const box = clampBox({
-      grid_x: 0,
-      grid_y: 0,
-      width: cfg.defaultSize.w,
-      height: cfg.defaultSize.h,
-    })
+    const box = clampBox(
+      {
+        grid_x: 0,
+        grid_y: 0,
+        width: cfg.defaultSize.w,
+        height: cfg.defaultSize.h,
+      },
+      cols,
+      rows
+    )
     const el: FloorElement = {
       id,
       type,
@@ -454,7 +524,7 @@ export function FloorPlan({
 
   const handleAddZone = (input: { name: string; priority: number; color: ZoneColor }) => {
     const id = newId()
-    const box = clampBox({ grid_x: 0, grid_y: 0, width: 4, height: 4 })
+    const box = clampBox({ grid_x: 0, grid_y: 0, width: 4, height: 4 }, cols, rows)
     const zone: Zone = {
       id,
       name: input.name,
@@ -567,8 +637,8 @@ export function FloorPlan({
     const cell = computeDropCell(e)
     if (!cell) return
     const { w, h } = getItemSize(draggedItem)
-    const x = Math.max(0, Math.min(GRID_SIZE - w, cell.x))
-    const y = Math.max(0, Math.min(GRID_SIZE - h, cell.y))
+    const x = Math.max(0, Math.min(cols - w, cell.x))
+    const y = Math.max(0, Math.min(rows - h, cell.y))
     setDragPreview({ x, y, w, h })
   }
 
@@ -589,12 +659,11 @@ export function FloorPlan({
       const size = existing
         ? { w: existing.width, h: existing.height }
         : defaultSizeForCapacity(table?.capacity ?? 2)
-      const box = clampBox({
-        grid_x: cell.x,
-        grid_y: cell.y,
-        width: size.w,
-        height: size.h,
-      })
+      const box = clampBox(
+        { grid_x: cell.x, grid_y: cell.y, width: size.w, height: size.h },
+        cols,
+        rows
+      )
       setLocalPositions((prev) => ({
         ...prev,
         [id]: {
@@ -606,12 +675,16 @@ export function FloorPlan({
     } else if (kind === 'zone') {
       const existing = localZones[id]
       if (!existing) return
-      const box = clampBox({
-        grid_x: cell.x,
-        grid_y: cell.y,
-        width: existing.width,
-        height: existing.height,
-      })
+      const box = clampBox(
+        {
+          grid_x: cell.x,
+          grid_y: cell.y,
+          width: existing.width,
+          height: existing.height,
+        },
+        cols,
+        rows
+      )
       setLocalZones((prev) => ({
         ...prev,
         [id]: { ...existing, ...box },
@@ -619,12 +692,16 @@ export function FloorPlan({
     } else {
       const existing = localElements[id]
       if (!existing) return
-      const box = clampBox({
-        grid_x: cell.x,
-        grid_y: cell.y,
-        width: existing.width,
-        height: existing.height,
-      })
+      const box = clampBox(
+        {
+          grid_x: cell.x,
+          grid_y: cell.y,
+          width: existing.width,
+          height: existing.height,
+        },
+        cols,
+        rows
+      )
       setLocalElements((prev) => ({
         ...prev,
         [id]: { ...existing, ...box },
@@ -673,12 +750,16 @@ export function FloorPlan({
     const onMove = (ev: PointerEvent) => {
       const dx = Math.round((ev.clientX - startX) / CELL_SIZE)
       const dy = Math.round((ev.clientY - startY) / CELL_SIZE)
-      const box = clampBox({
-        grid_x: startGX,
-        grid_y: startGY,
-        width: startW + dx,
-        height: startH + dy,
-      })
+      const box = clampBox(
+        {
+          grid_x: startGX,
+          grid_y: startGY,
+          width: startW + dx,
+          height: startH + dy,
+        },
+        cols,
+        rows
+      )
       if (ref.kind === 'table') {
         setLocalPositions((prev) => {
           const cur = prev[ref.id]
@@ -719,7 +800,6 @@ export function FloorPlan({
     })
   }
 
-  const gridPx = GRID_SIZE * CELL_SIZE
 
   const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
   const detailBooking = viewDetailId ? bookingByTableId.get(viewDetailId) ?? null : null
@@ -735,6 +815,17 @@ export function FloorPlan({
           {error}
         </div>
       )}
+
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setDimModalOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
+        >
+          <Ruler size={12} />
+          📐 Lokale: {dims.lengthM} × {dims.widthM} m ({cols}×{rows} celler)
+        </button>
+      </div>
 
       <FloorTabs
         floors={availableFloors}
@@ -837,8 +928,9 @@ export function FloorPlan({
             onClick={() => mode === 'edit' && setSelectedItem(null)}
             className="relative"
             style={{
-              width: gridPx,
-              height: gridPx,
+              width: gridPxWidth,
+              height: gridPxHeight,
+              overflow: 'hidden',
               backgroundColor: '#fafafa',
               backgroundImage:
                 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
@@ -951,6 +1043,24 @@ export function FloorPlan({
           onSubmit={handleAddZone}
         />
       )}
+
+      {dimModalOpen && (
+        <DimensionsModal
+          initial={dims}
+          items={[
+            ...positionsList.map((p) => ({
+              grid_x: p.grid_x,
+              grid_y: p.grid_y,
+              width: p.width,
+              height: p.height,
+            })),
+            ...zonesList,
+            ...elementsList,
+          ]}
+          onClose={() => setDimModalOpen(false)}
+          onSave={handleSaveDims}
+        />
+      )}
     </div>
   )
 }
@@ -1033,7 +1143,14 @@ function EditToolbar({
   selectedItem: ItemRef | null
   onDeleteSelected: () => void
 }) {
-  const elementTypes: FloorElementType[] = ['door', 'kitchen', 'bar', 'window', 'wall']
+  const elementTypes: FloorElementType[] = [
+    'door',
+    'kitchen',
+    'bar',
+    'toilet',
+    'window',
+    'wall',
+  ]
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1538,6 +1655,166 @@ function ZoneFormModal({
               className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
               Tilføj zone
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function DimensionsModal({
+  initial,
+  items,
+  onClose,
+  onSave,
+}: {
+  initial: Dimensions
+  items: { grid_x: number; grid_y: number; width: number; height: number }[]
+  onClose: () => void
+  onSave: (d: Dimensions) => void
+}) {
+  const [lengthM, setLengthM] = useState(initial.lengthM)
+  const [widthM, setWidthM] = useState(initial.widthM)
+  const [resolution, setResolution] = useState<Resolution>(initial.resolution)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const draft: Dimensions = { lengthM, widthM, resolution }
+  const { cols: newCols, rows: newRows } = dimsToGrid(draft)
+
+  const clippedCount = items.reduce(
+    (acc, it) =>
+      it.grid_x + it.width > newCols || it.grid_y + it.height > newRows
+        ? acc + 1
+        : acc,
+    0
+  )
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (
+      !Number.isFinite(lengthM) ||
+      lengthM < MIN_METERS ||
+      lengthM > MAX_METERS
+    ) {
+      setLocalError(`Længde skal være mellem ${MIN_METERS} og ${MAX_METERS} meter`)
+      return
+    }
+    if (!Number.isFinite(widthM) || widthM < MIN_METERS || widthM > MAX_METERS) {
+      setLocalError(`Bredde skal være mellem ${MIN_METERS} og ${MAX_METERS} meter`)
+      return
+    }
+    onSave({ lengthM, widthM, resolution })
+  }
+
+  const inputClass =
+    'w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-xl border border-[#e5e7eb] bg-white shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
+          <h2 className="text-base font-semibold text-[#111827]">
+            Lokale dimensioner
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+            aria-label="Luk"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          {localError && (
+            <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
+              {localError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+                Længde (meter)
+              </label>
+              <input
+                type="number"
+                min={MIN_METERS}
+                max={MAX_METERS}
+                step="0.25"
+                value={lengthM}
+                onChange={(e) => setLengthM(Number(e.target.value))}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+                Bredde (meter)
+              </label>
+              <input
+                type="number"
+                min={MIN_METERS}
+                max={MAX_METERS}
+                step="0.25"
+                value={widthM}
+                onChange={(e) => setWidthM(Number(e.target.value))}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+              Opløsning
+            </label>
+            <select
+              value={resolution}
+              onChange={(e) =>
+                setResolution(Number(e.target.value) as Resolution)
+              }
+              className={inputClass}
+            >
+              <option value={1}>Lav (1 m/celle)</option>
+              <option value={0.5}>Normal (0,5 m/celle)</option>
+              <option value={0.25}>Høj (0,25 m/celle)</option>
+            </select>
+          </div>
+
+          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-xs text-[#6b7280]">
+            Dit grid bliver <strong className="text-[#111827]">{newCols} × {newRows}</strong> celler
+          </div>
+
+          {clippedCount > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-[#fcd34d] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                OBS: {clippedCount}{' '}
+                {clippedCount === 1 ? 'element ligger' : 'elementer ligger'} uden for det nye grid og vil ikke være synlige.
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
+            >
+              Annuller
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
+            >
+              Gem dimensioner
             </button>
           </div>
         </form>
