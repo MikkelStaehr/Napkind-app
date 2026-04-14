@@ -47,6 +47,15 @@ export default async function LoginPage({
             />
           </div>
 
+          <label className="flex items-center gap-2 text-sm text-neutral-700 select-none">
+            <input
+              type="checkbox"
+              name="remember_me"
+              className="h-4 w-4 rounded border-neutral-300 text-[#f59e0b] focus:ring-[#f59e0b]"
+            />
+            Husk mig
+          </label>
+
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}

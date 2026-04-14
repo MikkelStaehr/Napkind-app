@@ -1,0 +1,12 @@
+export const SESSION_ONLY_COOKIE = 'napkind_session_only'
+
+export function stripPersistenceIfSessionOnly<
+  T extends { name: string; value: string; options?: { maxAge?: number; expires?: Date } },
+>(cookiesToSet: T[], sessionOnly: boolean): T[] {
+  if (!sessionOnly) return cookiesToSet
+  return cookiesToSet.map((c) => {
+    if (!c.name.startsWith('sb-')) return c
+    const { maxAge: _maxAge, expires: _expires, ...rest } = c.options ?? {}
+    return { ...c, options: rest }
+  })
+}
