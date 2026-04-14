@@ -1,5 +1,23 @@
 'use server'
 
+/*
+ * Required schema (run once in Supabase SQL editor):
+ *
+ * CREATE TABLE IF NOT EXISTS restaurant_table_positions (
+ *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   restaurant_id uuid REFERENCES restaurants(id) ON DELETE CASCADE,
+ *   table_id uuid REFERENCES restaurant_tables(id) ON DELETE CASCADE,
+ *   grid_x integer NOT NULL DEFAULT 0,
+ *   grid_y integer NOT NULL DEFAULT 0,
+ *   width integer NOT NULL DEFAULT 2,
+ *   height integer NOT NULL DEFAULT 2,
+ *   UNIQUE(restaurant_id, table_id)
+ * );
+ *
+ * ALTER TABLE restaurant_table_positions ENABLE ROW LEVEL SECURITY;
+ * (See original task spec for policies using get_my_restaurant_ids()).
+ */
+
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -85,6 +103,42 @@ export async function updateTable(id: string, formData: FormData) {
 
   if (error) {
     throw new Error('Kunne ikke opdatere bord: ' + error.message)
+  }
+
+  revalidatePath('/dashboard/tables')
+}
+
+export type TablePositionInput = {
+  table_id: string
+  grid_x: number
+  grid_y: number
+  width: number
+  height: number
+}
+
+export async function saveTablePositions(positions: TablePositionInput[]) {
+  const { supabase, restaurantId } = await getRestaurantId()
+
+  if (positions.length === 0) {
+    revalidatePath('/dashboard/tables')
+    return
+  }
+
+  const rows = positions.map((p) => ({
+    restaurant_id: restaurantId,
+    table_id: p.table_id,
+    grid_x: Math.max(0, Math.floor(p.grid_x)),
+    grid_y: Math.max(0, Math.floor(p.grid_y)),
+    width: Math.max(1, Math.floor(p.width)),
+    height: Math.max(1, Math.floor(p.height)),
+  }))
+
+  const { error } = await supabase
+    .from('restaurant_table_positions')
+    .upsert(rows, { onConflict: 'restaurant_id,table_id' })
+
+  if (error) {
+    throw new Error('Kunne ikke gemme positioner: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')

@@ -5,6 +5,14 @@ import { createClient } from '@/lib/supabase/server'
 import { logout } from '../actions'
 import type { RestaurantTable } from '@/app/types/database'
 import { TablesClient } from './tables-client'
+import type { TablePosition, TodayBooking } from './floor-plan'
+
+function toDateKey(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 export default async function TablesPage() {
   const supabase = await createClient()
@@ -34,6 +42,43 @@ export default async function TablesPage() {
     .select('*')
     .eq('restaurant_id', link.restaurant_id)
     .order('table_number', { ascending: true })
+
+  const { data: positionRows } = await supabase
+    .from('restaurant_table_positions')
+    .select('table_id, grid_x, grid_y, width, height')
+    .eq('restaurant_id', link.restaurant_id)
+
+  const positions: TablePosition[] = (positionRows ?? []).map((p) => ({
+    table_id: p.table_id as string,
+    grid_x: p.grid_x as number,
+    grid_y: p.grid_y as number,
+    width: p.width as number,
+    height: p.height as number,
+  }))
+
+  const today = toDateKey(new Date())
+  const { data: bookingRows } = await supabase
+    .from('restaurant_bookings')
+    .select(
+      'id, table_id, guest_name, guest_phone, party_size, booking_time, status, notes'
+    )
+    .eq('restaurant_id', link.restaurant_id)
+    .eq('booking_date', today)
+    .in('status', ['pending', 'confirmed'])
+    .order('booking_time', { ascending: true })
+
+  const todayBookings: TodayBooking[] = (bookingRows ?? [])
+    .filter((b) => b.table_id)
+    .map((b) => ({
+      id: b.id as string,
+      table_id: b.table_id as string,
+      guest_name: b.guest_name as string,
+      guest_phone: (b.guest_phone as string | null) ?? null,
+      party_size: b.party_size as number,
+      booking_time: b.booking_time as string,
+      status: b.status as 'pending' | 'confirmed',
+      notes: (b.notes as string | null) ?? null,
+    }))
 
   return (
     <div className="min-h-full flex-1 bg-[#f9fafb]">
@@ -79,7 +124,11 @@ export default async function TablesPage() {
         </div>
 
         <div className="mt-6">
-          <TablesClient tables={(tables ?? []) as RestaurantTable[]} />
+          <TablesClient
+            tables={(tables ?? []) as RestaurantTable[]}
+            positions={positions}
+            todayBookings={todayBookings}
+          />
         </div>
       </main>
     </div>

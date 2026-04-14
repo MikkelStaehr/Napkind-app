@@ -1,12 +1,19 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Pencil, Plus, Trash2, X } from 'lucide-react'
+import { LayoutGrid, List, Pencil, Plus, Trash2, X } from 'lucide-react'
 import type { RestaurantTable } from '@/app/types/database'
 import { createTable, deleteTable, updateTable } from './actions'
+import {
+  FloorPlan,
+  type TablePosition,
+  type TodayBooking,
+} from './floor-plan'
 
 type Props = {
   tables: RestaurantTable[]
+  positions: TablePosition[]
+  todayBookings: TodayBooking[]
 }
 
 type DraftState =
@@ -14,7 +21,10 @@ type DraftState =
   | { kind: 'new' }
   | { kind: 'edit'; table: RestaurantTable }
 
-export function TablesClient({ tables }: Props) {
+type ViewMode = 'list' | 'plan'
+
+export function TablesClient({ tables, positions, todayBookings }: Props) {
+  const [view, setView] = useState<ViewMode>('list')
   const [draft, setDraft] = useState<DraftState>({ kind: 'closed' })
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -58,14 +68,35 @@ export function TablesClient({ tables }: Props) {
 
   return (
     <div>
-      {error && (
-        <div className="mb-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#b91c1c]">
-          {error}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-lg border border-[#e5e7eb] bg-white p-0.5">
+          {(
+            [
+              { v: 'list', l: 'Liste', icon: List },
+              { v: 'plan', l: 'Plantegning', icon: LayoutGrid },
+            ] as { v: ViewMode; l: string; icon: typeof List }[]
+          ).map((o) => {
+            const active = o.v === view
+            const Icon = o.icon
+            return (
+              <button
+                key={o.v}
+                type="button"
+                onClick={() => setView(o.v)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? 'bg-[#f59e0b] text-white'
+                    : 'text-[#6b7280] hover:text-[#111827]'
+                }`}
+              >
+                <Icon size={14} />
+                {o.l}
+              </button>
+            )
+          })}
         </div>
-      )}
 
-      {draft.kind === 'closed' && (
-        <div className="mb-4 flex justify-end">
+        {view === 'list' && draft.kind === 'closed' && (
           <button
             type="button"
             onClick={() => setDraft({ kind: 'new' })}
@@ -74,6 +105,63 @@ export function TablesClient({ tables }: Props) {
             <Plus size={16} />
             Nyt bord
           </button>
+        )}
+      </div>
+
+      {view === 'plan' ? (
+        <FloorPlan
+          tables={tables}
+          positions={positions}
+          todayBookings={todayBookings}
+        />
+      ) : (
+        <ListView
+          tables={tables}
+          draft={draft}
+          setDraft={setDraft}
+          error={error}
+          setError={setError}
+          pending={pending}
+          deletingId={deletingId}
+          nextTableNumber={nextTableNumber}
+          handleSubmit={handleSubmit}
+          handleDelete={handleDelete}
+        />
+      )}
+    </div>
+  )
+}
+
+type ListViewProps = {
+  tables: RestaurantTable[]
+  draft: DraftState
+  setDraft: (d: DraftState) => void
+  error: string | null
+  setError: (e: string | null) => void
+  pending: boolean
+  deletingId: string | null
+  nextTableNumber: number
+  handleSubmit: (formData: FormData) => void
+  handleDelete: (id: string, tableNumber: number) => void
+}
+
+function ListView({
+  tables,
+  draft,
+  setDraft,
+  error,
+  setError,
+  pending,
+  deletingId,
+  nextTableNumber,
+  handleSubmit,
+  handleDelete,
+}: ListViewProps) {
+  return (
+    <div>
+      {error && (
+        <div className="mb-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#b91c1c]">
+          {error}
         </div>
       )}
 
