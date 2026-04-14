@@ -48,10 +48,18 @@ export default async function TablesPage() {
     .eq('restaurant_id', link.restaurant_id)
     .order('table_number', { ascending: true })
 
-  const { data: positionRows } = await supabase
+  const { data: positionRows, error: positionsError } = await supabase
     .from('restaurant_table_positions')
     .select('table_id, floor, grid_x, grid_y, width, height')
     .eq('restaurant_id', link.restaurant_id)
+
+  if (positionsError) {
+    throw new Error(
+      'Kunne ikke hente bordpositioner: ' +
+        positionsError.message +
+        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+    )
+  }
 
   const positions: TablePosition[] = (positionRows ?? []).map((p) => ({
     table_id: p.table_id as string,
@@ -62,10 +70,18 @@ export default async function TablesPage() {
     height: p.height as number,
   }))
 
-  const { data: zoneRows } = await supabase
+  const { data: zoneRows, error: zonesError } = await supabase
     .from('restaurant_zones')
     .select('id, name, priority, color, floor, grid_x, grid_y, width, height')
     .eq('restaurant_id', link.restaurant_id)
+
+  if (zonesError) {
+    throw new Error(
+      'Kunne ikke hente zoner: ' +
+        zonesError.message +
+        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+    )
+  }
 
   const zones: Zone[] = (zoneRows ?? []).map((z) => ({
     id: z.id as string,
@@ -79,10 +95,18 @@ export default async function TablesPage() {
     height: (z.height as number | null) ?? 4,
   }))
 
-  const { data: elementRows } = await supabase
+  const { data: elementRows, error: elementsError } = await supabase
     .from('restaurant_floor_elements')
     .select('id, type, floor, grid_x, grid_y, width, height, label')
     .eq('restaurant_id', link.restaurant_id)
+
+  if (elementsError) {
+    throw new Error(
+      'Kunne ikke hente plantegning-elementer: ' +
+        elementsError.message +
+        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+    )
+  }
 
   const elements: FloorElement[] = (elementRows ?? []).map((e) => ({
     id: e.id as string,

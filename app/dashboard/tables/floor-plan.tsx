@@ -87,7 +87,6 @@ export type TodayBooking = {
   notes: string | null
 }
 
-const CELL_SIZE = 48
 const DEFAULT_DIMS: Dimensions = { lengthM: 20, widthM: 15, resolution: 0.5 }
 const MIN_METERS = 4
 const MAX_METERS = 100
@@ -100,6 +99,10 @@ function dimsToGrid(d: Dimensions): { cols: number; rows: number } {
     cols: Math.max(1, Math.round(d.lengthM / d.resolution)),
     rows: Math.max(1, Math.round(d.widthM / d.resolution)),
   }
+}
+
+function computeCellSize(containerWidth: number, cols: number): number {
+  return Math.max(20, Math.floor(containerWidth / cols))
 }
 
 type ItemKind = 'table' | 'zone' | 'element'
@@ -301,6 +304,7 @@ export function FloorPlan({
   const [pending, startTransition] = useTransition()
 
   const gridRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const grabOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -310,6 +314,19 @@ export function FloorPlan({
       setLocalElements(elementsToMap(elements))
     }
   }, [positions, zones, elements, mode])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const w = el.clientWidth
+      if (w > 0) setContainerWidth(w)
+    }
+    measure()
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -336,8 +353,10 @@ export function FloorPlan({
   }, [restaurantId])
 
   const { cols, rows } = useMemo(() => dimsToGrid(dims), [dims])
-  const gridPxWidth = cols * CELL_SIZE
-  const gridPxHeight = rows * CELL_SIZE
+  const [containerWidth, setContainerWidth] = useState(800)
+  const cellSize = computeCellSize(containerWidth, cols)
+  const gridPxWidth = cols * cellSize
+  const gridPxHeight = rows * cellSize
 
   const handleSaveDims = (newDims: Dimensions) => {
     setDims(newDims)
@@ -622,10 +641,10 @@ export function FloorPlan({
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
     const x = Math.floor(
-      (e.clientX - grabOffset.current.x - rect.left) / CELL_SIZE
+      (e.clientX - grabOffset.current.x - rect.left) / cellSize
     )
     const y = Math.floor(
-      (e.clientY - grabOffset.current.y - rect.top) / CELL_SIZE
+      (e.clientY - grabOffset.current.y - rect.top) / cellSize
     )
     return { x, y }
   }
@@ -748,8 +767,8 @@ export function FloorPlan({
     const startY = e.clientY
 
     const onMove = (ev: PointerEvent) => {
-      const dx = Math.round((ev.clientX - startX) / CELL_SIZE)
-      const dy = Math.round((ev.clientY - startY) / CELL_SIZE)
+      const dx = Math.round((ev.clientX - startX) / cellSize)
+      const dy = Math.round((ev.clientY - startY) / cellSize)
       const box = clampBox(
         {
           grid_x: startGX,
@@ -919,7 +938,17 @@ export function FloorPlan({
           </aside>
         )}
 
-        <div className="flex-1 overflow-auto rounded-xl border border-[#e5e7eb] bg-white p-3">
+        <div
+          ref={containerRef}
+          className="flex-1 rounded-xl border border-[#e5e7eb] bg-white p-3"
+          style={{
+            width: '100%',
+            minWidth: 0,
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 320px)',
+          }}
+        >
           <div
             ref={gridRef}
             onDragOver={mode === 'edit' ? handleGridDragOver : undefined}
@@ -934,7 +963,7 @@ export function FloorPlan({
               backgroundColor: '#fafafa',
               backgroundImage:
                 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
-              backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+              backgroundSize: `${cellSize}px ${cellSize}px`,
             }}
           >
             {/* Zones layer */}
@@ -942,6 +971,7 @@ export function FloorPlan({
               <ZoneShape
                 key={z.id}
                 zone={z}
+                cellSize={cellSize}
                 mode={mode}
                 selected={selectedItem?.kind === 'zone' && selectedItem.id === z.id}
                 dragging={draggedItem?.kind === 'zone' && draggedItem.id === z.id}
@@ -961,6 +991,7 @@ export function FloorPlan({
               <ElementShape
                 key={el.id}
                 element={el}
+                cellSize={cellSize}
                 mode={mode}
                 selected={selectedItem?.kind === 'element' && selectedItem.id === el.id}
                 dragging={draggedItem?.kind === 'element' && draggedItem.id === el.id}
@@ -989,6 +1020,7 @@ export function FloorPlan({
                   position={p}
                   table={table}
                   booking={booking}
+                  cellSize={cellSize}
                   mode={mode}
                   selected={isSelected}
                   dragging={isDragging}
@@ -1016,10 +1048,10 @@ export function FloorPlan({
               <div
                 className="pointer-events-none absolute z-40 rounded-md border-2 border-dashed border-[#f59e0b] bg-[#fef3c7]/40"
                 style={{
-                  left: dragPreview.x * CELL_SIZE,
-                  top: dragPreview.y * CELL_SIZE,
-                  width: dragPreview.w * CELL_SIZE,
-                  height: dragPreview.h * CELL_SIZE,
+                  left: dragPreview.x * cellSize,
+                  top: dragPreview.y * cellSize,
+                  width: dragPreview.w * cellSize,
+                  height: dragPreview.h * cellSize,
                 }}
               />
             )}
@@ -1047,6 +1079,7 @@ export function FloorPlan({
       {dimModalOpen && (
         <DimensionsModal
           initial={dims}
+          containerWidth={containerWidth}
           items={[
             ...positionsList.map((p) => ({
               grid_x: p.grid_x,
@@ -1214,6 +1247,7 @@ function TableCard({
   position,
   table,
   booking,
+  cellSize,
   mode,
   selected,
   dragging,
@@ -1225,6 +1259,7 @@ function TableCard({
   position: TablePosition
   table: RestaurantTable
   booking: TodayBooking | null
+  cellSize: number
   mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
@@ -1243,7 +1278,15 @@ function TableCard({
   }
 
   const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
-  const showDetails = position.width >= 3 && position.height >= 2 && booking !== null
+  const tier: 'tiny' | 'compact' | 'full' =
+    cellSize < 25 ? 'tiny' : cellSize < 40 ? 'compact' : 'full'
+  const showCardDetails = tier === 'full' && position.width >= 3 && position.height >= 2
+
+  const dotColor = !booking
+    ? '#d1d5db'
+    : booking.status === 'pending'
+      ? '#f59e0b'
+      : '#10b981'
 
   return (
     <div
@@ -1251,44 +1294,61 @@ function TableCard({
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`absolute z-30 flex flex-col overflow-hidden rounded-md border-2 p-1.5 text-xs transition ${colorClasses} ${editRing} ${
+      className={`absolute z-30 flex flex-col overflow-hidden rounded-md border-2 text-xs transition ${colorClasses} ${editRing} ${
         dragging ? 'opacity-50' : ''
-      } ${mode === 'edit' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+      } ${mode === 'edit' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
+        tier === 'tiny' ? 'p-0.5 items-center justify-center' : 'p-1.5'
+      }`}
       style={{
-        left: position.grid_x * CELL_SIZE,
-        top: position.grid_y * CELL_SIZE,
-        width: position.width * CELL_SIZE,
-        height: position.height * CELL_SIZE,
+        left: position.grid_x * cellSize,
+        top: position.grid_y * cellSize,
+        width: position.width * cellSize,
+        height: position.height * cellSize,
       }}
     >
-      <div className="flex items-start justify-between gap-1">
-        <div className="font-bold leading-tight">Bord {table.table_number}</div>
-        <div className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-medium text-[#374151]">
-          {table.capacity} pers.
-        </div>
-      </div>
-
-      {booking ? (
-        <div className="mt-1 min-w-0 flex-1">
-          <div className="truncate text-[11px] font-semibold">
-            {booking.guest_name} · {formatTime(booking.booking_time)}
-          </div>
-          {showDetails && (
-            <>
-              <div className="mt-0.5 text-[10px] opacity-80">
-                {booking.party_size} pers.
-                {booking.status === 'pending' ? ' · afventer' : ' · bekræftet'}
-              </div>
-              {booking.notes && (
-                <div className="mt-0.5 truncate text-[10px] italic text-[#b91c1c]">
-                  {booking.notes}
-                </div>
-              )}
-            </>
-          )}
+      {tier === 'tiny' ? (
+        <div className="flex flex-col items-center gap-0.5">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: dotColor }}
+            aria-hidden
+          />
+          <span className="text-[10px] font-bold leading-none">{table.table_number}</span>
         </div>
       ) : (
-        <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
+        <>
+          <div className="flex items-start justify-between gap-1">
+            <div className="font-bold leading-tight">Bord {table.table_number}</div>
+            <div className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-medium text-[#374151]">
+              {table.capacity} pers.
+            </div>
+          </div>
+
+          {booking ? (
+            <div className="mt-1 min-w-0 flex-1">
+              <div className="truncate text-[11px] font-semibold">
+                {tier === 'full'
+                  ? `${booking.guest_name} · ${formatTime(booking.booking_time)}`
+                  : booking.guest_name}
+              </div>
+              {showCardDetails && (
+                <>
+                  <div className="mt-0.5 text-[10px] opacity-80">
+                    {booking.party_size} pers.
+                    {booking.status === 'pending' ? ' · afventer' : ' · bekræftet'}
+                  </div>
+                  {booking.notes && (
+                    <div className="mt-0.5 truncate text-[10px] italic text-[#b91c1c]">
+                      {booking.notes}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : tier === 'full' ? (
+            <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
+          ) : null}
+        </>
       )}
 
       {mode === 'edit' && selected && (
@@ -1304,6 +1364,7 @@ function TableCard({
 
 function ZoneShape({
   zone,
+  cellSize,
   mode,
   selected,
   dragging,
@@ -1313,6 +1374,7 @@ function ZoneShape({
   onResizeStart,
 }: {
   zone: Zone
+  cellSize: number
   mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
@@ -1338,10 +1400,10 @@ function ZoneShape({
           : 'pointer-events-none'
       }`}
       style={{
-        left: zone.grid_x * CELL_SIZE,
-        top: zone.grid_y * CELL_SIZE,
-        width: zone.width * CELL_SIZE,
-        height: zone.height * CELL_SIZE,
+        left: zone.grid_x * cellSize,
+        top: zone.grid_y * cellSize,
+        width: zone.width * cellSize,
+        height: zone.height * cellSize,
         backgroundColor: cfg.bg,
         borderColor: cfg.border,
       }}
@@ -1368,6 +1430,7 @@ function ZoneShape({
 
 function ElementShape({
   element,
+  cellSize,
   mode,
   selected,
   dragging,
@@ -1377,6 +1440,7 @@ function ElementShape({
   onResizeStart,
 }: {
   element: FloorElement
+  cellSize: number
   mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
@@ -1403,10 +1467,10 @@ function ElementShape({
           : 'pointer-events-none'
       }`}
       style={{
-        left: element.grid_x * CELL_SIZE,
-        top: element.grid_y * CELL_SIZE,
-        width: element.width * CELL_SIZE,
-        height: element.height * CELL_SIZE,
+        left: element.grid_x * cellSize,
+        top: element.grid_y * cellSize,
+        width: element.width * cellSize,
+        height: element.height * cellSize,
         backgroundColor: cfg.bg,
         border: `2px ${cfg.borderStyle} ${cfg.border}`,
         color: cfg.textColor,
@@ -1665,11 +1729,13 @@ function ZoneFormModal({
 
 function DimensionsModal({
   initial,
+  containerWidth,
   items,
   onClose,
   onSave,
 }: {
   initial: Dimensions
+  containerWidth: number
   items: { grid_x: number; grid_y: number; width: number; height: number }[]
   onClose: () => void
   onSave: (d: Dimensions) => void
@@ -1681,6 +1747,8 @@ function DimensionsModal({
 
   const draft: Dimensions = { lengthM, widthM, resolution }
   const { cols: newCols, rows: newRows } = dimsToGrid(draft)
+  const estimatedCellSize = Math.max(1, Math.floor(containerWidth / newCols))
+  const tooDense = estimatedCellSize < 20
 
   const clippedCount = items.reduce(
     (acc, it) =>
@@ -1789,8 +1857,17 @@ function DimensionsModal({
           </div>
 
           <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-xs text-[#6b7280]">
-            Dit grid bliver <strong className="text-[#111827]">{newCols} × {newRows}</strong> celler
+            Dit grid bliver <strong className="text-[#111827]">{newCols} × {newRows}</strong> celler (ca. {estimatedCellSize}px per celle)
           </div>
+
+          {tooDense && (
+            <div className="flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                OBS: Opløsningen er for høj til skærmen — vælg lavere opløsning eller gør lokalet mindre.
+              </span>
+            </div>
+          )}
 
           {clippedCount > 0 && (
             <div className="flex items-start gap-2 rounded-lg border border-[#fcd34d] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
