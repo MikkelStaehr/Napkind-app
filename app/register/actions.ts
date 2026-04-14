@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { slugify } from '@/lib/slugify'
 
 export async function register(formData: FormData) {
@@ -35,7 +36,7 @@ export async function register(formData: FormData) {
   const userId = signUpData.user.id
   const slug = slugify(restaurantName)
 
-  const { data: restaurant, error: restaurantError } = await supabase
+  const { data: restaurant, error: restaurantError } = await supabaseAdmin
     .from('restaurants')
     .insert({
       name: restaurantName,
@@ -53,7 +54,7 @@ export async function register(formData: FormData) {
     )
   }
 
-  const { error: linkError } = await supabase.from('restaurant_users').insert({
+  const { error: linkError } = await supabaseAdmin.from('restaurant_users').insert({
     restaurant_id: restaurant.id,
     user_id: userId,
     role: 'owner',
