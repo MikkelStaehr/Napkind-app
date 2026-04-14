@@ -21,12 +21,6 @@ function mapStatus(s: StripeSubStatus): string {
   return s
 }
 
-function periodEndIso(sub: Stripe.Subscription): string | null {
-  const end = (sub as unknown as { current_period_end?: number }).current_period_end
-  if (typeof end !== 'number') return null
-  return new Date(end * 1000).toISOString()
-}
-
 async function findRestaurantId(params: {
   metadataRestaurantId?: string | null
   customerId?: string | null
@@ -67,12 +61,24 @@ async function handleSubscription(
     return
   }
 
+  const s = subscription as unknown as {
+    current_period_end?: number
+    items?: { data?: Array<{ current_period_end?: number }> }
+  }
+  const periodEnd = s.current_period_end ?? s.items?.data?.[0]?.current_period_end ?? null
+  const periodEndsAt =
+    typeof periodEnd === 'number' ? new Date(periodEnd * 1000).toISOString() : null
+
+  console.log('[stripe webhook] Subscription object keys:', Object.keys(subscription))
+  console.log('[stripe webhook] Period end raw:', periodEnd)
+  console.log('[stripe webhook] Full subscription:', JSON.stringify(subscription, null, 2))
+
   const { error } = await supabaseAdmin
     .from('restaurants')
     .update({
       subscription_status: statusOverride ?? mapStatus(subscription.status),
       stripe_subscription_id: subscription.id,
-      current_period_ends_at: periodEndIso(subscription),
+      current_period_ends_at: periodEndsAt,
     })
     .eq('id', restaurantId)
 
@@ -108,7 +114,9 @@ export async function POST(request: Request) {
             typeof session.subscription === 'string'
               ? session.subscription
               : session.subscription.id
-          const subscription = await stripe.subscriptions.retrieve(subId)
+          const subscription = await stripe.subscriptions.retrieve(subId, {
+            expand: ['items.data.price'],
+          })
           await handleSubscription(subscription, 'active')
         }
         break

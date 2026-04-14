@@ -81,10 +81,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    request.headers.get('origin') ??
-    'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    return NextResponse.json(
+      { error: 'Server-konfigurationsfejl: NEXT_PUBLIC_APP_URL mangler' },
+      { status: 500 }
+    )
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',

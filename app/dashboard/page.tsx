@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CalendarDays, ClipboardList, LayoutGrid, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { logout } from './actions'
+import { UpgradedBanner } from './upgraded-banner'
 
 const sections = [
   {
@@ -40,7 +41,12 @@ function formatDanishDate(date: Date): string {
   }).format(date)
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgraded?: string }>
+}) {
+  const { upgraded } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -91,6 +97,8 @@ export default async function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-10">
+        {upgraded === 'true' && <UpgradedBanner />}
+
         <section>
           <h1 className="text-2xl font-bold tracking-tight text-[#111827]">
             God dag, {restaurantName}
