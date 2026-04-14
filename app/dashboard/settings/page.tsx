@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { logout } from '../actions'
+import { DashboardHeader } from '../_components/dashboard-header'
 import { SettingsClient } from './settings-client'
 
 type RestaurantRow = {
@@ -59,45 +59,26 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="min-h-full flex-1 bg-[#f9fafb]">
-      <header className="border-b border-[#e5e7eb] bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="font-logo text-2xl tracking-tight text-[#111827]">
-            Napkind
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="hidden text-sm text-[#6b7280] sm:inline">
-              {restaurant.name}
-            </span>
-            <form action={logout}>
-              <button
-                type="submit"
-                className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
-              >
-                Log ud
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-full flex-1 bg-white">
+      <DashboardHeader restaurantName={restaurant.name} />
 
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-6 py-12">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#111827] transition"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} strokeWidth={1.5} />
           Dashboard
         </Link>
 
-        <h1 className="mt-4 text-2xl font-bold tracking-tight text-[#111827]">
+        <h1 className="mt-6 font-logo text-4xl tracking-tight text-[#111827]">
           Indstillinger
         </h1>
-        <p className="mt-1 text-sm text-[#6b7280]">
+        <p className="mt-2 text-sm text-[#6b7280]">
           Administrer din restaurant, abonnement og konto
         </p>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <SettingsClient
             userEmail={user.email ?? ''}
             restaurant={restaurant}

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { logout } from '../actions'
+import { DashboardHeader } from '../_components/dashboard-header'
 import {
   CalendarClient,
   type CalendarBooking,
@@ -83,47 +83,28 @@ export default async function CalendarPage() {
   }))
 
   return (
-    <div className="min-h-full flex-1 bg-[#f9fafb]">
-      <header className="border-b border-[#e5e7eb] bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="font-logo text-2xl tracking-tight text-[#111827]">
-            Napkind
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="hidden text-sm text-[#6b7280] sm:inline">
-              {restaurantName}
-            </span>
-            <form action={logout}>
-              <button
-                type="submit"
-                className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
-              >
-                Log ud
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-full flex-1 bg-white">
+      <DashboardHeader restaurantName={restaurantName} />
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-6 py-12">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#111827] transition"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} strokeWidth={1.5} />
           Dashboard
         </Link>
 
-        <div className="mt-4">
-          <h1 className="text-2xl font-bold tracking-tight text-[#111827]">
+        <div className="mt-6">
+          <h1 className="font-logo text-4xl tracking-tight text-[#111827]">
             Kalender
           </h1>
-          <p className="mt-1 text-sm text-[#6b7280]">
+          <p className="mt-2 text-sm text-[#6b7280]">
             Se og administrer bookinger pr. dag, uge eller måned
           </p>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-8">
           <CalendarClient
             bookings={calendarBookings}
             tables={tableOptions}
