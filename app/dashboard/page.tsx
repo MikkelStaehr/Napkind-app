@@ -1,6 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, ClipboardList, LayoutGrid, Settings } from 'lucide-react'
+import {
+  CalendarDays,
+  ClipboardList,
+  LayoutGrid,
+  Monitor,
+  Settings,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { logout } from './actions'
 import { UpgradedBanner } from './upgraded-banner'
@@ -119,6 +125,14 @@ export default async function DashboardPage({
               </div>
             ))}
           </div>
+
+          <Link
+            href="/dashboard/floorplan"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#f59e0b] px-6 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#d97706] transition sm:w-auto"
+          >
+            <Monitor size={18} />
+            Åbn restaurantvisning
+          </Link>
         </section>
 
         <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
