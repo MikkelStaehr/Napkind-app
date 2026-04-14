@@ -11,6 +11,7 @@ import {
   type Zone,
   type FloorElement,
 } from './floor-plan'
+import { DEFAULT_TABLE_PRIORITY } from '@/lib/constants'
 
 type Props = {
   tables: RestaurantTable[]
@@ -189,7 +190,7 @@ function ListView({
               : {
                   table_number: nextTableNumber,
                   capacity: 2,
-                  priority: 10,
+                  priority: DEFAULT_TABLE_PRIORITY,
                   is_active: true,
                 }
           }

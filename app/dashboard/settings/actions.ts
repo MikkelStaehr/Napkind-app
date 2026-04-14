@@ -49,13 +49,16 @@ export async function updateRestaurantInfo(formData: FormData): Promise<ActionRe
     return { ok: false, error: 'Restaurantnavn må ikke være tomt' }
   }
 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: 'Ugyldig email-adresse' }
+  if (email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (email.length > 254 || !emailRegex.test(email)) {
+      return { ok: false, error: 'Ugyldig email-adresse' }
+    }
   }
 
-  const { restaurantId } = await requireUserAndRestaurant()
+  const { supabase, restaurantId } = await requireUserAndRestaurant()
 
-  const { error } = await supabaseAdmin
+  const { error } = await supabase
     .from('restaurants')
     .update({
       name,

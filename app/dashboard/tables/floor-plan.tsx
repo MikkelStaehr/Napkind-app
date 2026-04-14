@@ -40,6 +40,11 @@ import {
   type ZoneColor,
   type ZoneInput,
 } from './actions'
+import {
+  CELL_SIZE_MIN,
+  GRID_RESOLUTION_HIGH,
+  GRID_RESOLUTION_LOW,
+} from '@/lib/constants'
 
 export type TablePosition = {
   table_id: string
@@ -111,7 +116,6 @@ const DRAW_CELL = 20
 const MIN_METERS = 4
 const MAX_METERS = 100
 const DRAW_MIN_CELLS = 10
-const MIN_CELL_SIZE = 16
 
 const ZONE_COLORS: Record<ZoneColor, { bg: string; border: string; chip: string }> = {
   amber: { bg: 'rgba(254,243,199,0.55)', border: '#f59e0b', chip: 'bg-[#f59e0b] text-white' },
@@ -325,7 +329,7 @@ export function FloorPlan({
   const [shapeMode, setShapeMode] = useState<ShapeMode>('rect')
   const [lengthM, setLengthM] = useState(20)
   const [widthM, setWidthM] = useState(15)
-  const [resolution, setResolution] = useState<Resolution>(0.5)
+  const [resolution, setResolution] = useState<Resolution>(GRID_RESOLUTION_HIGH)
   const [activeCells, setActiveCells] = useState<Set<string>>(new Set())
 
   const [localPositions, setLocalPositions] = useState(() => positionsToMap(positions))
@@ -403,7 +407,10 @@ export function FloorPlan({
       ) {
         setWidthM(parsed.widthM)
       }
-      if (parsed.resolution === 0.5 || parsed.resolution === 1) {
+      if (
+        parsed.resolution === GRID_RESOLUTION_HIGH ||
+        parsed.resolution === GRID_RESOLUTION_LOW
+      ) {
         setResolution(parsed.resolution)
       }
       if (Array.isArray(parsed.activeCells)) {
@@ -428,7 +435,7 @@ export function FloorPlan({
     () => computeShape(shapeMode, lengthM, widthM, resolution, activeCells),
     [shapeMode, lengthM, widthM, resolution, activeCells]
   )
-  const cellSize = Math.max(MIN_CELL_SIZE, Math.floor(containerWidth / cols))
+  const cellSize = Math.max(CELL_SIZE_MIN, Math.floor(containerWidth / cols))
   const gridPxWidth = cols * cellSize
   const gridPxHeight = rows * cellSize
 
@@ -471,13 +478,12 @@ export function FloorPlan({
       ? Math.max(...allTables.map((t) => t.table_number)) + 1
       : 1
 
-  const handleCreateTable = async (formData: FormData) => {
+  const handleCreateTable = async (formData: FormData): Promise<void> => {
     const created = await createTable(formData)
     setExtraTables((prev) => [
       ...prev.filter((t) => t.id !== created.id),
       created as RestaurantTable,
     ])
-    return created
   }
 
   const currentPositions = positionsList.filter((p) => p.floor === currentFloor)
@@ -1368,8 +1374,8 @@ function RectForm({
           disabled={disabled}
           className={inputClass}
         >
-          <option value={1}>Lav (1 m/celle)</option>
-          <option value={0.5}>Høj (0,5 m/celle)</option>
+          <option value={GRID_RESOLUTION_LOW}>Lav (1 m/celle)</option>
+          <option value={GRID_RESOLUTION_HIGH}>Høj (0,5 m/celle)</option>
         </select>
       </label>
       <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
@@ -1898,7 +1904,7 @@ type Step3Props = {
   zoom: number
   setZoom: (z: number) => void
   nextTableNumber: number
-  onCreateTable: (formData: FormData) => Promise<unknown>
+  onCreateTable: (formData: FormData) => Promise<void>
 }
 
 function Step3Tables(props: Step3Props) {
@@ -3002,7 +3008,7 @@ function NewTableForm({
   onCreate,
 }: {
   nextTableNumber: number
-  onCreate: (formData: FormData) => Promise<unknown>
+  onCreate: (formData: FormData) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [tableNumber, setTableNumber] = useState(nextTableNumber)

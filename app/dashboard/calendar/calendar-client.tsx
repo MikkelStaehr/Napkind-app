@@ -16,6 +16,7 @@ import {
   type BookingStatus,
 } from '../bookings/actions'
 import { toDateKey } from '@/lib/format'
+import { FLOOR_PLAN_HOUR_END, FLOOR_PLAN_HOUR_START } from '@/lib/constants'
 
 export type CalendarBooking = {
   id: string
@@ -64,9 +65,10 @@ const WEEKDAYS_LONG = [
   'søndag',
 ]
 
-const HOUR_START = 8
-const HOUR_END = 23
-const HOURS = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i)
+const HOURS = Array.from(
+  { length: FLOOR_PLAN_HOUR_END - FLOOR_PLAN_HOUR_START + 1 },
+  (_, i) => FLOOR_PLAN_HOUR_START + i
+)
 
 const statusMeta: Record<BookingStatus, { label: string; badge: string; card: string; dot: string }> = {
   pending: {

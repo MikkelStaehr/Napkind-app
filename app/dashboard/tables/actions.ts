@@ -53,6 +53,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getRestaurantId, parseIntField } from '@/lib/dal'
+import { DEFAULT_TABLE_PRIORITY } from '@/lib/constants'
 
 export type CreatedTable = {
   id: string
@@ -70,7 +71,7 @@ export async function createTable(formData: FormData): Promise<CreatedTable> {
   const priorityRaw = formData.get('priority')
   const priority =
     priorityRaw === null || String(priorityRaw).trim() === ''
-      ? 10
+      ? DEFAULT_TABLE_PRIORITY
       : parseIntField(priorityRaw, 'Prioritet')
   const isActive = formData.get('is_active') === null ? true : formData.get('is_active') === 'on'
 
@@ -99,7 +100,7 @@ export async function createTable(formData: FormData): Promise<CreatedTable> {
   return data as CreatedTable
 }
 
-export async function updateTable(id: string, formData: FormData) {
+export async function updateTable(id: string, formData: FormData): Promise<void> {
   const tableNumber = parseIntField(formData.get('table_number'), 'Bordnummer')
   const capacity = parseIntField(formData.get('capacity'), 'Kapacitet')
   const priority = parseIntField(formData.get('priority'), 'Prioritet')
@@ -183,7 +184,9 @@ const VALID_ZONE_COLORS: ReadonlySet<string> = new Set([
   'gray',
 ])
 
-export async function saveTablePositions(positions: TablePositionInput[]) {
+export async function saveTablePositions(
+  positions: TablePositionInput[]
+): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   const { error: deleteError } = await supabase
@@ -218,7 +221,9 @@ export async function saveTablePositions(positions: TablePositionInput[]) {
   revalidatePath('/dashboard/tables')
 }
 
-export async function saveFloorElements(elements: FloorElementInput[]) {
+export async function saveFloorElements(
+  elements: FloorElementInput[]
+): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   for (const el of elements) {
@@ -266,7 +271,7 @@ export async function saveFloorElements(elements: FloorElementInput[]) {
   revalidatePath('/dashboard/tables')
 }
 
-export async function deleteFloorElement(id: string) {
+export async function deleteFloorElement(id: string): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   const { error } = await supabase
@@ -282,7 +287,7 @@ export async function deleteFloorElement(id: string) {
   revalidatePath('/dashboard/tables')
 }
 
-export async function saveZones(zones: ZoneInput[]) {
+export async function saveZones(zones: ZoneInput[]): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   for (const z of zones) {
@@ -329,7 +334,7 @@ export async function saveZones(zones: ZoneInput[]) {
   revalidatePath('/dashboard/tables')
 }
 
-export async function deleteZone(id: string) {
+export async function deleteZone(id: string): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   const { error } = await supabase
@@ -345,7 +350,7 @@ export async function deleteZone(id: string) {
   revalidatePath('/dashboard/tables')
 }
 
-export async function deleteTable(id: string) {
+export async function deleteTable(id: string): Promise<void> {
   const { supabase, restaurantId } = await getRestaurantId()
 
   const { error } = await supabase
