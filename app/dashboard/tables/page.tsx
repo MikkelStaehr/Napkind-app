@@ -5,7 +5,12 @@ import { createClient } from '@/lib/supabase/server'
 import { logout } from '../actions'
 import type { RestaurantTable } from '@/app/types/database'
 import { TablesClient } from './tables-client'
-import type { TablePosition, TodayBooking } from './floor-plan'
+import type {
+  TablePosition,
+  TodayBooking,
+  Zone,
+  FloorElement,
+} from './floor-plan'
 
 function toDateKey(d: Date) {
   const y = d.getFullYear()
@@ -45,15 +50,49 @@ export default async function TablesPage() {
 
   const { data: positionRows } = await supabase
     .from('restaurant_table_positions')
-    .select('table_id, grid_x, grid_y, width, height')
+    .select('table_id, floor, grid_x, grid_y, width, height')
     .eq('restaurant_id', link.restaurant_id)
 
   const positions: TablePosition[] = (positionRows ?? []).map((p) => ({
     table_id: p.table_id as string,
+    floor: (p.floor as number | null) ?? 1,
     grid_x: p.grid_x as number,
     grid_y: p.grid_y as number,
     width: p.width as number,
     height: p.height as number,
+  }))
+
+  const { data: zoneRows } = await supabase
+    .from('restaurant_zones')
+    .select('id, name, priority, color, floor, grid_x, grid_y, width, height')
+    .eq('restaurant_id', link.restaurant_id)
+
+  const zones: Zone[] = (zoneRows ?? []).map((z) => ({
+    id: z.id as string,
+    name: (z.name as string) ?? '',
+    priority: (z.priority as number | null) ?? 1,
+    color: ((z.color as string | null) ?? 'amber') as Zone['color'],
+    floor: (z.floor as number | null) ?? 1,
+    grid_x: (z.grid_x as number | null) ?? 0,
+    grid_y: (z.grid_y as number | null) ?? 0,
+    width: (z.width as number | null) ?? 4,
+    height: (z.height as number | null) ?? 4,
+  }))
+
+  const { data: elementRows } = await supabase
+    .from('restaurant_floor_elements')
+    .select('id, type, floor, grid_x, grid_y, width, height, label')
+    .eq('restaurant_id', link.restaurant_id)
+
+  const elements: FloorElement[] = (elementRows ?? []).map((e) => ({
+    id: e.id as string,
+    type: e.type as FloorElement['type'],
+    floor: (e.floor as number | null) ?? 1,
+    grid_x: (e.grid_x as number | null) ?? 0,
+    grid_y: (e.grid_y as number | null) ?? 0,
+    width: (e.width as number | null) ?? 1,
+    height: (e.height as number | null) ?? 1,
+    label: (e.label as string | null) ?? null,
   }))
 
   const today = toDateKey(new Date())
@@ -127,6 +166,8 @@ export default async function TablesPage() {
           <TablesClient
             tables={(tables ?? []) as RestaurantTable[]}
             positions={positions}
+            zones={zones}
+            elements={elements}
             todayBookings={todayBookings}
           />
         </div>

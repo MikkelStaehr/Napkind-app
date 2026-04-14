@@ -8,11 +8,15 @@ import {
   FloorPlan,
   type TablePosition,
   type TodayBooking,
+  type Zone,
+  type FloorElement,
 } from './floor-plan'
 
 type Props = {
   tables: RestaurantTable[]
   positions: TablePosition[]
+  zones: Zone[]
+  elements: FloorElement[]
   todayBookings: TodayBooking[]
 }
 
@@ -23,7 +27,13 @@ type DraftState =
 
 type ViewMode = 'list' | 'plan'
 
-export function TablesClient({ tables, positions, todayBookings }: Props) {
+export function TablesClient({
+  tables,
+  positions,
+  zones,
+  elements,
+  todayBookings,
+}: Props) {
   const [view, setView] = useState<ViewMode>('list')
   const [draft, setDraft] = useState<DraftState>({ kind: 'closed' })
   const [error, setError] = useState<string | null>(null)
@@ -112,6 +122,8 @@ export function TablesClient({ tables, positions, todayBookings }: Props) {
         <FloorPlan
           tables={tables}
           positions={positions}
+          zones={zones}
+          elements={elements}
           todayBookings={todayBookings}
         />
       ) : (

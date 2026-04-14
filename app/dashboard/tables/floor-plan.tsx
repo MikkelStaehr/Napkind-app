@@ -1,14 +1,27 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type PointerEvent as ReactPointerEvent,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import {
   AlertTriangle,
   Check,
-  Move,
+  ChefHat,
+  DoorOpen,
   Pencil,
   Phone,
+  Plus,
   Save,
+  Trash2,
   Users,
+  Wine,
   X,
 } from 'lucide-react'
 import type { RestaurantTable } from '@/app/types/database'
@@ -16,14 +29,49 @@ import {
   updateBookingStatus,
   type BookingStatus,
 } from '../bookings/actions'
-import { saveTablePositions, type TablePositionInput } from './actions'
+import {
+  deleteFloorElement,
+  deleteZone,
+  saveFloorElements,
+  saveTablePositions,
+  saveZones,
+  type FloorElementInput,
+  type FloorElementType,
+  type TablePositionInput,
+  type ZoneColor,
+  type ZoneInput,
+} from './actions'
 
 export type TablePosition = {
   table_id: string
+  floor: number
   grid_x: number
   grid_y: number
   width: number
   height: number
+}
+
+export type Zone = {
+  id: string
+  name: string
+  priority: number
+  color: ZoneColor
+  floor: number
+  grid_x: number
+  grid_y: number
+  width: number
+  height: number
+}
+
+export type FloorElement = {
+  id: string
+  type: FloorElementType
+  floor: number
+  grid_x: number
+  grid_y: number
+  width: number
+  height: number
+  label: string | null
 }
 
 export type TodayBooking = {
@@ -39,55 +87,188 @@ export type TodayBooking = {
 
 const CELL_SIZE = 48
 const GRID_SIZE = 20
-const DND_TYPE = 'application/x-napkind-table'
 
-type PositionMap = Record<string, TablePosition>
+type ItemKind = 'table' | 'zone' | 'element'
+type ItemRef = { kind: ItemKind; id: string }
 
-function positionsToMap(list: TablePosition[]): PositionMap {
-  const m: PositionMap = {}
-  for (const p of list) m[p.table_id] = p
-  return m
+const ZONE_COLORS: Record<ZoneColor, { bg: string; border: string; chip: string }> = {
+  amber: {
+    bg: 'rgba(254, 243, 199, 0.55)',
+    border: '#f59e0b',
+    chip: 'bg-[#f59e0b] text-white',
+  },
+  green: {
+    bg: 'rgba(209, 250, 229, 0.55)',
+    border: '#10b981',
+    chip: 'bg-[#10b981] text-white',
+  },
+  blue: {
+    bg: 'rgba(219, 234, 254, 0.55)',
+    border: '#3b82f6',
+    chip: 'bg-[#3b82f6] text-white',
+  },
+  purple: {
+    bg: 'rgba(237, 233, 254, 0.55)',
+    border: '#8b5cf6',
+    chip: 'bg-[#8b5cf6] text-white',
+  },
+  red: {
+    bg: 'rgba(254, 226, 226, 0.55)',
+    border: '#ef4444',
+    chip: 'bg-[#ef4444] text-white',
+  },
+  gray: {
+    bg: 'rgba(243, 244, 246, 0.75)',
+    border: '#6b7280',
+    chip: 'bg-[#6b7280] text-white',
+  },
 }
 
-function clampPosition(p: {
+const ZONE_COLOR_OPTIONS: ZoneColor[] = ['amber', 'green', 'blue', 'purple', 'red', 'gray']
+
+type ElementConfig = {
+  label: string
+  menuLabel: string
+  defaultSize: { w: number; h: number }
+  bg: string
+  border: string
+  borderStyle: 'solid' | 'dashed'
+  textColor: string
+  icon: typeof ChefHat | null
+}
+
+const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
+  kitchen: {
+    label: 'Køkken',
+    menuLabel: '🍳 Køkken',
+    defaultSize: { w: 4, h: 3 },
+    bg: '#334155',
+    border: '#0f172a',
+    borderStyle: 'solid',
+    textColor: '#f8fafc',
+    icon: ChefHat,
+  },
+  door: {
+    label: 'Dør / Entre',
+    menuLabel: '🚪 Dør/Entre',
+    defaultSize: { w: 2, h: 1 },
+    bg: '#f9fafb',
+    border: '#6b7280',
+    borderStyle: 'dashed',
+    textColor: '#374151',
+    icon: DoorOpen,
+  },
+  bar: {
+    label: 'Bar',
+    menuLabel: '🍸 Bar',
+    defaultSize: { w: 4, h: 1 },
+    bg: '#ede9fe',
+    border: '#8b5cf6',
+    borderStyle: 'solid',
+    textColor: '#5b21b6',
+    icon: Wine,
+  },
+  window: {
+    label: 'Vindue',
+    menuLabel: '🪟 Vindue',
+    defaultSize: { w: 2, h: 1 },
+    bg: '#e0f2fe',
+    border: '#bae6fd',
+    borderStyle: 'solid',
+    textColor: '#075985',
+    icon: null,
+  },
+  wall: {
+    label: 'Væg',
+    menuLabel: '🧱 Væg',
+    defaultSize: { w: 4, h: 1 },
+    bg: '#9ca3af',
+    border: '#4b5563',
+    borderStyle: 'solid',
+    textColor: '#ffffff',
+    icon: null,
+  },
+}
+
+function defaultSizeForCapacity(capacity: number): { w: number; h: number } {
+  if (capacity <= 2) return { w: 2, h: 2 }
+  if (capacity <= 4) return { w: 3, h: 2 }
+  if (capacity <= 6) return { w: 4, h: 2 }
+  return { w: 4, h: 3 }
+}
+
+function clampBox(p: {
   grid_x: number
   grid_y: number
   width: number
   height: number
-}): TablePosition {
-  const width = Math.max(1, Math.min(GRID_SIZE, p.width))
-  const height = Math.max(1, Math.min(GRID_SIZE, p.height))
-  const grid_x = Math.max(0, Math.min(GRID_SIZE - width, p.grid_x))
-  const grid_y = Math.max(0, Math.min(GRID_SIZE - height, p.grid_y))
-  return { table_id: '', grid_x, grid_y, width, height }
+}) {
+  const width = Math.max(1, Math.min(GRID_SIZE, Math.floor(p.width)))
+  const height = Math.max(1, Math.min(GRID_SIZE, Math.floor(p.height)))
+  const grid_x = Math.max(0, Math.min(GRID_SIZE - width, Math.floor(p.grid_x)))
+  const grid_y = Math.max(0, Math.min(GRID_SIZE - height, Math.floor(p.grid_y)))
+  return { grid_x, grid_y, width, height }
 }
 
 function formatTime(t: string): string {
   return t.slice(0, 5)
 }
 
+function newId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `tmp-${Math.random().toString(36).slice(2)}-${Date.now()}`
+}
+
+function positionsToMap(list: TablePosition[]): Record<string, TablePosition> {
+  const m: Record<string, TablePosition> = {}
+  for (const p of list) m[p.table_id] = p
+  return m
+}
+
+function zonesToMap(list: Zone[]): Record<string, Zone> {
+  const m: Record<string, Zone> = {}
+  for (const z of list) m[z.id] = z
+  return m
+}
+
+function elementsToMap(list: FloorElement[]): Record<string, FloorElement> {
+  const m: Record<string, FloorElement> = {}
+  for (const e of list) m[e.id] = e
+  return m
+}
+
 export function FloorPlan({
   tables,
   positions,
+  zones,
+  elements,
   todayBookings,
 }: {
   tables: RestaurantTable[]
   positions: TablePosition[]
+  zones: Zone[]
+  elements: FloorElement[]
   todayBookings: TodayBooking[]
 }) {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
-  const [localPositions, setLocalPositions] = useState<PositionMap>(() =>
-    positionsToMap(positions)
-  )
-  const [editSelectedId, setEditSelectedId] = useState<string | null>(null)
-  const [viewSelectedId, setViewSelectedId] = useState<string | null>(null)
-  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [currentFloor, setCurrentFloor] = useState(1)
+  const [extraFloors, setExtraFloors] = useState<number[]>([])
+  const [localPositions, setLocalPositions] = useState(() => positionsToMap(positions))
+  const [localZones, setLocalZones] = useState(() => zonesToMap(zones))
+  const [localElements, setLocalElements] = useState(() => elementsToMap(elements))
+  const [selectedItem, setSelectedItem] = useState<ItemRef | null>(null)
+  const [draggedItem, setDraggedItem] = useState<ItemRef | null>(null)
   const [dragPreview, setDragPreview] = useState<{
     x: number
     y: number
     w: number
     h: number
   } | null>(null)
+  const [viewDetailId, setViewDetailId] = useState<string | null>(null)
+  const [zoneFormOpen, setZoneFormOpen] = useState(false)
+  const [addElementMenuOpen, setAddElementMenuOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -98,8 +279,10 @@ export function FloorPlan({
   useEffect(() => {
     if (mode === 'view') {
       setLocalPositions(positionsToMap(positions))
+      setLocalZones(zonesToMap(zones))
+      setLocalElements(elementsToMap(elements))
     }
-  }, [positions, mode])
+  }, [positions, zones, elements, mode])
 
   const tableById = useMemo(() => {
     const m = new Map<string, RestaurantTable>()
@@ -115,20 +298,40 @@ export function FloorPlan({
     return m
   }, [todayBookings])
 
-  const placed = Object.values(localPositions)
-  const placedIds = new Set(placed.map((p) => p.table_id))
-  const unplaced = tables.filter((t) => !placedIds.has(t.id))
+  const positionsList = Object.values(localPositions)
+  const zonesList = Object.values(localZones)
+  const elementsList = Object.values(localElements)
+
+  const availableFloors = useMemo(() => {
+    const set = new Set<number>([1, currentFloor, ...extraFloors])
+    for (const p of positionsList) set.add(p.floor)
+    for (const z of zonesList) set.add(z.floor)
+    for (const e of elementsList) set.add(e.floor)
+    return Array.from(set).sort((a, b) => a - b)
+  }, [positionsList, zonesList, elementsList, extraFloors, currentFloor])
+
+  const placedOnAnyFloor = new Set(positionsList.map((p) => p.table_id))
+  const unplaced = tables.filter((t) => !placedOnAnyFloor.has(t.id))
+
+  const currentPositions = positionsList.filter((p) => p.floor === currentFloor)
+  const currentZones = zonesList
+    .filter((z) => z.floor === currentFloor)
+    .sort((a, b) => a.priority - b.priority)
+  const currentElements = elementsList.filter((e) => e.floor === currentFloor)
 
   const handleEnterEdit = () => {
-    setEditSelectedId(null)
-    setViewSelectedId(null)
-    setError(null)
     setMode('edit')
+    setSelectedItem(null)
+    setViewDetailId(null)
+    setError(null)
   }
 
   const handleCancel = () => {
     setLocalPositions(positionsToMap(positions))
-    setEditSelectedId(null)
+    setLocalZones(zonesToMap(zones))
+    setLocalElements(elementsToMap(elements))
+    setExtraFloors([])
+    setSelectedItem(null)
     setError(null)
     setMode('view')
   }
@@ -137,15 +340,44 @@ export function FloorPlan({
     setSaving(true)
     setError(null)
     try {
-      const payload: TablePositionInput[] = placed.map((p) => ({
+      const positionPayload: TablePositionInput[] = Object.values(localPositions).map((p) => ({
         table_id: p.table_id,
+        floor: p.floor,
         grid_x: p.grid_x,
         grid_y: p.grid_y,
         width: p.width,
         height: p.height,
       }))
-      await saveTablePositions(payload)
-      setEditSelectedId(null)
+      const zonePayload: ZoneInput[] = Object.values(localZones).map((z) => ({
+        id: z.id,
+        name: z.name,
+        priority: z.priority,
+        color: z.color,
+        floor: z.floor,
+        grid_x: z.grid_x,
+        grid_y: z.grid_y,
+        width: z.width,
+        height: z.height,
+      }))
+      const elementPayload: FloorElementInput[] = Object.values(localElements).map((e) => ({
+        id: e.id,
+        type: e.type,
+        floor: e.floor,
+        grid_x: e.grid_x,
+        grid_y: e.grid_y,
+        width: e.width,
+        height: e.height,
+        label: e.label,
+      }))
+
+      await Promise.all([
+        saveTablePositions(positionPayload),
+        saveZones(zonePayload),
+        saveFloorElements(elementPayload),
+      ])
+
+      setExtraFloors([])
+      setSelectedItem(null)
       setMode('view')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kunne ikke gemme layout')
@@ -154,27 +386,168 @@ export function FloorPlan({
     }
   }
 
+  const handleAddFloor = () => {
+    const maxFloor = availableFloors[availableFloors.length - 1] ?? 1
+    const next = maxFloor + 1
+    setExtraFloors((prev) => [...prev, next])
+    setCurrentFloor(next)
+  }
+
+  const handleDeleteFloor = (floor: number) => {
+    const hasContent =
+      positionsList.some((p) => p.floor === floor) ||
+      zonesList.some((z) => z.floor === floor) ||
+      elementsList.some((e) => e.floor === floor)
+    if (hasContent) {
+      const ok = confirm(
+        `Etage ${floor} indeholder placerede borde, zoner eller elementer. Slet alt indhold på denne etage?`
+      )
+      if (!ok) return
+      setLocalPositions((prev) => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          if (v.floor !== floor) next[k] = v
+        }
+        return next
+      })
+      setLocalZones((prev) => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          if (v.floor !== floor) next[k] = v
+        }
+        return next
+      })
+      setLocalElements((prev) => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          if (v.floor !== floor) next[k] = v
+        }
+        return next
+      })
+    }
+    setExtraFloors((prev) => prev.filter((f) => f !== floor))
+    if (currentFloor === floor) {
+      setCurrentFloor(1)
+    }
+  }
+
+  const handleAddElement = (type: FloorElementType) => {
+    const cfg = ELEMENT_CONFIGS[type]
+    const id = newId()
+    const box = clampBox({
+      grid_x: 0,
+      grid_y: 0,
+      width: cfg.defaultSize.w,
+      height: cfg.defaultSize.h,
+    })
+    const el: FloorElement = {
+      id,
+      type,
+      floor: currentFloor,
+      ...box,
+      label: null,
+    }
+    setLocalElements((prev) => ({ ...prev, [id]: el }))
+    setSelectedItem({ kind: 'element', id })
+    setAddElementMenuOpen(false)
+  }
+
+  const handleAddZone = (input: { name: string; priority: number; color: ZoneColor }) => {
+    const id = newId()
+    const box = clampBox({ grid_x: 0, grid_y: 0, width: 4, height: 4 })
+    const zone: Zone = {
+      id,
+      name: input.name,
+      priority: input.priority,
+      color: input.color,
+      floor: currentFloor,
+      ...box,
+    }
+    setLocalZones((prev) => ({ ...prev, [id]: zone }))
+    setSelectedItem({ kind: 'zone', id })
+    setZoneFormOpen(false)
+  }
+
+  const handleDeleteSelected = async () => {
+    if (!selectedItem) return
+    const { kind, id } = selectedItem
+    if (kind === 'table') {
+      const ok = confirm('Fjern bordet fra plantegningen?')
+      if (!ok) return
+      setLocalPositions((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setSelectedItem(null)
+    } else if (kind === 'zone') {
+      const ok = confirm('Slet denne zone?')
+      if (!ok) return
+      setLocalZones((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      try {
+        await deleteZone(id)
+      } catch {
+        // zone may not yet be persisted (new id); ignore
+      }
+      setSelectedItem(null)
+    } else {
+      const ok = confirm('Slet dette element?')
+      if (!ok) return
+      setLocalElements((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      try {
+        await deleteFloorElement(id)
+      } catch {
+        // not persisted yet
+      }
+      setSelectedItem(null)
+    }
+  }
+
+  const getItemSize = (ref: ItemRef): { w: number; h: number } => {
+    if (ref.kind === 'table') {
+      const pos = localPositions[ref.id]
+      if (pos) return { w: pos.width, h: pos.height }
+      const table = tableById.get(ref.id)
+      const cap = table?.capacity ?? 2
+      return defaultSizeForCapacity(cap)
+    }
+    if (ref.kind === 'zone') {
+      const z = localZones[ref.id]
+      return z ? { w: z.width, h: z.height } : { w: 4, h: 4 }
+    }
+    const el = localElements[ref.id]
+    return el ? { w: el.width, h: el.height } : { w: 2, h: 2 }
+  }
+
   const handleDragStart = (
-    tableId: string,
-    e: React.DragEvent<HTMLDivElement>
+    ref: ItemRef,
+    e: ReactDragEvent<HTMLDivElement>
   ) => {
     const rect = e.currentTarget.getBoundingClientRect()
     grabOffset.current = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     }
-    setDraggedId(tableId)
-    e.dataTransfer.setData(DND_TYPE, tableId)
+    setDraggedItem(ref)
+    e.dataTransfer.setData('text/plain', `${ref.kind}:${ref.id}`)
     e.dataTransfer.effectAllowed = 'move'
   }
 
   const handleDragEnd = () => {
-    setDraggedId(null)
+    setDraggedItem(null)
     setDragPreview(null)
     grabOffset.current = { x: 0, y: 0 }
   }
 
-  const computeDropCell = (e: React.DragEvent<HTMLDivElement>) => {
+  const computeDropCell = (e: ReactDragEvent<HTMLDivElement>) => {
     const grid = gridRef.current
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
@@ -187,90 +560,144 @@ export function FloorPlan({
     return { x, y }
   }
 
-  const getDragSize = (id: string | null) => {
-    if (!id) return { w: 2, h: 2 }
-    const existing = localPositions[id]
-    return existing
-      ? { w: existing.width, h: existing.height }
-      : { w: 2, h: 2 }
-  }
-
-  const handleGridDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleGridDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
+    if (mode !== 'edit' || !draggedItem) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const cell = computeDropCell(e)
     if (!cell) return
-    const { w, h } = getDragSize(draggedId)
+    const { w, h } = getItemSize(draggedItem)
     const x = Math.max(0, Math.min(GRID_SIZE - w, cell.x))
     const y = Math.max(0, Math.min(GRID_SIZE - h, cell.y))
     setDragPreview({ x, y, w, h })
   }
 
-  const handleGridDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleGridDrop = (e: ReactDragEvent<HTMLDivElement>) => {
+    if (mode !== 'edit') return
     e.preventDefault()
-    const tableId = e.dataTransfer.getData(DND_TYPE) || draggedId
-    if (!tableId) return
+    const data = e.dataTransfer.getData('text/plain')
+    const [kindRaw, id] = data.split(':') as [ItemKind, string]
+    const kind = kindRaw as ItemKind
+    if (!id || !['table', 'zone', 'element'].includes(kind)) return
+
     const cell = computeDropCell(e)
     if (!cell) return
-    const existing = localPositions[tableId]
-    const w = existing?.width ?? 2
-    const h = existing?.height ?? 2
-    const clamped = clampPosition({
-      grid_x: cell.x,
-      grid_y: cell.y,
-      width: w,
-      height: h,
-    })
-    setLocalPositions((prev) => ({
-      ...prev,
-      [tableId]: {
-        table_id: tableId,
-        grid_x: clamped.grid_x,
-        grid_y: clamped.grid_y,
-        width: clamped.width,
-        height: clamped.height,
-      },
-    }))
-    setDraggedId(null)
+
+    if (kind === 'table') {
+      const existing = localPositions[id]
+      const table = tableById.get(id)
+      const size = existing
+        ? { w: existing.width, h: existing.height }
+        : defaultSizeForCapacity(table?.capacity ?? 2)
+      const box = clampBox({
+        grid_x: cell.x,
+        grid_y: cell.y,
+        width: size.w,
+        height: size.h,
+      })
+      setLocalPositions((prev) => ({
+        ...prev,
+        [id]: {
+          table_id: id,
+          floor: currentFloor,
+          ...box,
+        },
+      }))
+    } else if (kind === 'zone') {
+      const existing = localZones[id]
+      if (!existing) return
+      const box = clampBox({
+        grid_x: cell.x,
+        grid_y: cell.y,
+        width: existing.width,
+        height: existing.height,
+      })
+      setLocalZones((prev) => ({
+        ...prev,
+        [id]: { ...existing, ...box },
+      }))
+    } else {
+      const existing = localElements[id]
+      if (!existing) return
+      const box = clampBox({
+        grid_x: cell.x,
+        grid_y: cell.y,
+        width: existing.width,
+        height: existing.height,
+      })
+      setLocalElements((prev) => ({
+        ...prev,
+        [id]: { ...existing, ...box },
+      }))
+    }
+
+    setDraggedItem(null)
     setDragPreview(null)
   }
 
   const handleResizeStart = (
-    tableId: string,
-    e: React.PointerEvent<HTMLDivElement>
+    ref: ItemRef,
+    e: ReactPointerEvent<HTMLDivElement>
   ) => {
     e.preventDefault()
     e.stopPropagation()
-    const pos = localPositions[tableId]
-    if (!pos) return
+    let startW = 0
+    let startH = 0
+    let startGX = 0
+    let startGY = 0
+    if (ref.kind === 'table') {
+      const p = localPositions[ref.id]
+      if (!p) return
+      startW = p.width
+      startH = p.height
+      startGX = p.grid_x
+      startGY = p.grid_y
+    } else if (ref.kind === 'zone') {
+      const z = localZones[ref.id]
+      if (!z) return
+      startW = z.width
+      startH = z.height
+      startGX = z.grid_x
+      startGY = z.grid_y
+    } else {
+      const el = localElements[ref.id]
+      if (!el) return
+      startW = el.width
+      startH = el.height
+      startGX = el.grid_x
+      startGY = el.grid_y
+    }
     const startX = e.clientX
     const startY = e.clientY
-    const startW = pos.width
-    const startH = pos.height
 
     const onMove = (ev: PointerEvent) => {
       const dx = Math.round((ev.clientX - startX) / CELL_SIZE)
       const dy = Math.round((ev.clientY - startY) / CELL_SIZE)
-      setLocalPositions((prev) => {
-        const current = prev[tableId]
-        if (!current) return prev
-        const clamped = clampPosition({
-          grid_x: current.grid_x,
-          grid_y: current.grid_y,
-          width: startW + dx,
-          height: startH + dy,
-        })
-        return {
-          ...prev,
-          [tableId]: {
-            table_id: tableId,
-            grid_x: clamped.grid_x,
-            grid_y: clamped.grid_y,
-            width: clamped.width,
-            height: clamped.height,
-          },
-        }
+      const box = clampBox({
+        grid_x: startGX,
+        grid_y: startGY,
+        width: startW + dx,
+        height: startH + dy,
       })
+      if (ref.kind === 'table') {
+        setLocalPositions((prev) => {
+          const cur = prev[ref.id]
+          if (!cur) return prev
+          return { ...prev, [ref.id]: { ...cur, ...box } }
+        })
+      } else if (ref.kind === 'zone') {
+        setLocalZones((prev) => {
+          const cur = prev[ref.id]
+          if (!cur) return prev
+          return { ...prev, [ref.id]: { ...cur, ...box } }
+        })
+      } else {
+        setLocalElements((prev) => {
+          const cur = prev[ref.id]
+          if (!cur) return prev
+          return { ...prev, [ref.id]: { ...cur, ...box } }
+        })
+      }
     }
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
@@ -285,7 +712,7 @@ export function FloorPlan({
     startTransition(async () => {
       try {
         await updateBookingStatus(bookingId, status)
-        setViewSelectedId(null)
+        setViewDetailId(null)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Kunne ikke opdatere booking')
       }
@@ -294,10 +721,12 @@ export function FloorPlan({
 
   const gridPx = GRID_SIZE * CELL_SIZE
 
-  const viewBooking = viewSelectedId
-    ? bookingByTableId.get(viewSelectedId) ?? null
+  const detailTable = viewDetailId ? tableById.get(viewDetailId) ?? null : null
+  const detailBooking = viewDetailId ? bookingByTableId.get(viewDetailId) ?? null : null
+
+  const unplacedMsg = unplaced.length > 0
+    ? `${unplaced.length} ${unplaced.length === 1 ? 'bord er' : 'borde er'} ikke placeret — gå til Rediger layout`
     : null
-  const viewTable = viewSelectedId ? tableById.get(viewSelectedId) ?? null : null
 
   return (
     <div>
@@ -307,13 +736,19 @@ export function FloorPlan({
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <FloorTabs
+        floors={availableFloors}
+        currentFloor={currentFloor}
+        onSelect={setCurrentFloor}
+        onAdd={mode === 'edit' ? handleAddFloor : null}
+        onDelete={mode === 'edit' ? handleDeleteFloor : null}
+      />
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-[#6b7280]">
           {mode === 'edit'
-            ? 'Træk borde fra siden ind på gridet. Klik et bord for at vælge og ændre størrelse.'
-            : unplaced.length > 0
-              ? `${unplaced.length} ${unplaced.length === 1 ? 'bord er' : 'borde er'} ikke placeret — gå til Rediger layout`
-              : 'Klik på et bord for at se dagens booking'}
+            ? 'Træk borde, zoner og elementer på gridet. Klik for at vælge og ændre størrelse.'
+            : unplacedMsg ?? 'Klik på et bord for at se dagens booking'}
         </div>
 
         <div className="flex items-center gap-2">
@@ -350,7 +785,18 @@ export function FloorPlan({
         </div>
       </div>
 
-      <div className="flex gap-4">
+      {mode === 'edit' && (
+        <EditToolbar
+          addElementMenuOpen={addElementMenuOpen}
+          setAddElementMenuOpen={setAddElementMenuOpen}
+          onAddElement={handleAddElement}
+          onOpenZoneForm={() => setZoneFormOpen(true)}
+          selectedItem={selectedItem}
+          onDeleteSelected={handleDeleteSelected}
+        />
+      )}
+
+      <div className="mt-4 flex gap-4">
         {mode === 'edit' && (
           <aside className="w-48 shrink-0 rounded-xl border border-[#e5e7eb] bg-white p-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
@@ -364,11 +810,10 @@ export function FloorPlan({
                   <li key={t.id}>
                     <div
                       draggable
-                      onDragStart={(e) => handleDragStart(t.id, e)}
+                      onDragStart={(e) => handleDragStart({ kind: 'table', id: t.id }, e)}
                       onDragEnd={handleDragEnd}
                       className="flex cursor-grab items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2.5 py-2 text-xs text-[#111827] hover:border-[#f59e0b] active:cursor-grabbing"
                     >
-                      <Move size={12} className="text-[#9ca3af]" />
                       <div>
                         <div className="font-semibold">Bord {t.table_number}</div>
                         <div className="text-[10px] text-[#6b7280]">
@@ -389,7 +834,7 @@ export function FloorPlan({
             onDragOver={mode === 'edit' ? handleGridDragOver : undefined}
             onDragLeave={() => setDragPreview(null)}
             onDrop={mode === 'edit' ? handleGridDrop : undefined}
-            onClick={() => mode === 'edit' && setEditSelectedId(null)}
+            onClick={() => mode === 'edit' && setSelectedItem(null)}
             className="relative"
             style={{
               width: gridPx,
@@ -400,24 +845,51 @@ export function FloorPlan({
               backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
             }}
           >
-            {mode === 'edit' && dragPreview && (
-              <div
-                className="pointer-events-none absolute rounded-md border-2 border-dashed border-[#f59e0b] bg-[#fef3c7]/40"
-                style={{
-                  left: dragPreview.x * CELL_SIZE,
-                  top: dragPreview.y * CELL_SIZE,
-                  width: dragPreview.w * CELL_SIZE,
-                  height: dragPreview.h * CELL_SIZE,
+            {/* Zones layer */}
+            {currentZones.map((z) => (
+              <ZoneShape
+                key={z.id}
+                zone={z}
+                mode={mode}
+                selected={selectedItem?.kind === 'zone' && selectedItem.id === z.id}
+                dragging={draggedItem?.kind === 'zone' && draggedItem.id === z.id}
+                onClick={(e) => {
+                  if (mode !== 'edit') return
+                  e.stopPropagation()
+                  setSelectedItem({ kind: 'zone', id: z.id })
                 }}
+                onDragStart={(e) => handleDragStart({ kind: 'zone', id: z.id }, e)}
+                onDragEnd={handleDragEnd}
+                onResizeStart={(e) => handleResizeStart({ kind: 'zone', id: z.id }, e)}
               />
-            )}
+            ))}
 
-            {placed.map((p) => {
+            {/* Elements layer */}
+            {currentElements.map((el) => (
+              <ElementShape
+                key={el.id}
+                element={el}
+                mode={mode}
+                selected={selectedItem?.kind === 'element' && selectedItem.id === el.id}
+                dragging={draggedItem?.kind === 'element' && draggedItem.id === el.id}
+                onClick={(e) => {
+                  if (mode !== 'edit') return
+                  e.stopPropagation()
+                  setSelectedItem({ kind: 'element', id: el.id })
+                }}
+                onDragStart={(e) => handleDragStart({ kind: 'element', id: el.id }, e)}
+                onDragEnd={handleDragEnd}
+                onResizeStart={(e) => handleResizeStart({ kind: 'element', id: el.id }, e)}
+              />
+            ))}
+
+            {/* Table cards layer */}
+            {currentPositions.map((p) => {
               const table = tableById.get(p.table_id)
               if (!table) return null
               const booking = bookingByTableId.get(p.table_id) ?? null
-              const isEditSelected = editSelectedId === p.table_id
-              const isDragging = draggedId === p.table_id
+              const isSelected = selectedItem?.kind === 'table' && selectedItem.id === p.table_id
+              const isDragging = draggedItem?.kind === 'table' && draggedItem.id === p.table_id
 
               return (
                 <TableCard
@@ -426,36 +898,196 @@ export function FloorPlan({
                   table={table}
                   booking={booking}
                   mode={mode}
-                  selected={isEditSelected}
+                  selected={isSelected}
                   dragging={isDragging}
                   onClick={(e) => {
                     e.stopPropagation()
                     if (mode === 'edit') {
-                      setEditSelectedId((cur) =>
-                        cur === p.table_id ? null : p.table_id
+                      setSelectedItem((cur) =>
+                        cur?.kind === 'table' && cur.id === p.table_id
+                          ? null
+                          : { kind: 'table', id: p.table_id }
                       )
                     } else {
-                      setViewSelectedId(p.table_id)
+                      setViewDetailId(p.table_id)
                     }
                   }}
-                  onDragStart={(e) => handleDragStart(p.table_id, e)}
+                  onDragStart={(e) => handleDragStart({ kind: 'table', id: p.table_id }, e)}
                   onDragEnd={handleDragEnd}
-                  onResizeStart={(e) => handleResizeStart(p.table_id, e)}
+                  onResizeStart={(e) => handleResizeStart({ kind: 'table', id: p.table_id }, e)}
                 />
               )
             })}
+
+            {/* Drag preview */}
+            {mode === 'edit' && dragPreview && (
+              <div
+                className="pointer-events-none absolute z-40 rounded-md border-2 border-dashed border-[#f59e0b] bg-[#fef3c7]/40"
+                style={{
+                  left: dragPreview.x * CELL_SIZE,
+                  top: dragPreview.y * CELL_SIZE,
+                  width: dragPreview.w * CELL_SIZE,
+                  height: dragPreview.h * CELL_SIZE,
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {mode === 'view' && viewTable && viewSelectedId && (
+      {mode === 'view' && detailTable && viewDetailId && (
         <DetailModal
-          table={viewTable}
-          booking={viewBooking}
+          table={detailTable}
+          booking={detailBooking}
           pending={pending}
-          onClose={() => setViewSelectedId(null)}
+          onClose={() => setViewDetailId(null)}
           onStatus={handleBookingStatus}
         />
+      )}
+
+      {mode === 'edit' && zoneFormOpen && (
+        <ZoneFormModal
+          onClose={() => setZoneFormOpen(false)}
+          onSubmit={handleAddZone}
+        />
+      )}
+    </div>
+  )
+}
+
+function FloorTabs({
+  floors,
+  currentFloor,
+  onSelect,
+  onAdd,
+  onDelete,
+}: {
+  floors: number[]
+  currentFloor: number
+  onSelect: (n: number) => void
+  onAdd: (() => void) | null
+  onDelete: ((n: number) => void) | null
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {floors.map((f) => {
+        const active = f === currentFloor
+        return (
+          <div
+            key={f}
+            className={`group inline-flex items-center overflow-hidden rounded-lg border transition ${
+              active ? 'border-[#f59e0b] bg-[#f59e0b]' : 'border-[#e5e7eb] bg-white'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onSelect(f)}
+              className={`px-3 py-1.5 text-xs font-medium ${
+                active ? 'text-white' : 'text-[#111827] hover:text-[#f59e0b]'
+              }`}
+            >
+              Etage {f}
+            </button>
+            {onDelete && f !== 1 && active && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete(f)
+                }}
+                className="h-full px-1.5 text-white/90 hover:text-white"
+                aria-label={`Slet etage ${f}`}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )
+      })}
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
+        >
+          <Plus size={12} />
+          Tilføj etage
+        </button>
+      )}
+    </div>
+  )
+}
+
+function EditToolbar({
+  addElementMenuOpen,
+  setAddElementMenuOpen,
+  onAddElement,
+  onOpenZoneForm,
+  selectedItem,
+  onDeleteSelected,
+}: {
+  addElementMenuOpen: boolean
+  setAddElementMenuOpen: (v: boolean) => void
+  onAddElement: (type: FloorElementType) => void
+  onOpenZoneForm: () => void
+  selectedItem: ItemRef | null
+  onDeleteSelected: () => void
+}) {
+  const elementTypes: FloorElementType[] = ['door', 'kitchen', 'bar', 'window', 'wall']
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setAddElementMenuOpen(!addElementMenuOpen)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
+        >
+          <Plus size={12} />
+          Tilføj element
+        </button>
+        {addElementMenuOpen && (
+          <div
+            className="absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-[#e5e7eb] bg-white shadow-lg"
+            onMouseLeave={() => setAddElementMenuOpen(false)}
+          >
+            {elementTypes.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onAddElement(t)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#111827] hover:bg-[#fef3c7] transition"
+              >
+                {ELEMENT_CONFIGS[t].menuLabel}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpenZoneForm}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#f59e0b] transition"
+      >
+        <Plus size={12} />
+        Tilføj zone
+      </button>
+
+      {selectedItem && (
+        <button
+          type="button"
+          onClick={onDeleteSelected}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#fecaca] bg-white px-3 py-1.5 text-xs font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
+        >
+          <Trash2 size={12} />
+          Slet{' '}
+          {selectedItem.kind === 'table'
+            ? 'bord'
+            : selectedItem.kind === 'zone'
+              ? 'zone'
+              : 'element'}
+        </button>
       )}
     </div>
   )
@@ -479,13 +1111,12 @@ function TableCard({
   mode: 'view' | 'edit'
   selected: boolean
   dragging: boolean
-  onClick: (e: React.MouseEvent) => void
-  onDragStart: (e: React.DragEvent<HTMLDivElement>) => void
+  onClick: (e: ReactMouseEvent) => void
+  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
   onDragEnd: () => void
-  onResizeStart: (e: React.PointerEvent<HTMLDivElement>) => void
+  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
-  let colorClasses =
-    'border-[#e5e7eb] bg-white hover:border-[#f59e0b] text-[#111827]'
+  let colorClasses = 'border-[#e5e7eb] bg-white hover:border-[#f59e0b] text-[#111827]'
   if (booking) {
     if (booking.status === 'pending') {
       colorClasses = 'border-[#f59e0b] bg-[#fef3c7] text-[#92400e] hover:border-[#d97706]'
@@ -494,12 +1125,8 @@ function TableCard({
     }
   }
 
-  const editRing = selected
-    ? 'ring-2 ring-[#f59e0b] ring-offset-1'
-    : ''
-
-  const showDetails =
-    position.width >= 3 && position.height >= 2 && booking !== null
+  const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
+  const showDetails = position.width >= 3 && position.height >= 2 && booking !== null
 
   return (
     <div
@@ -507,7 +1134,7 @@ function TableCard({
       onClick={onClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`absolute flex flex-col overflow-hidden rounded-md border-2 p-1.5 text-xs transition ${colorClasses} ${editRing} ${
+      className={`absolute z-30 flex flex-col overflow-hidden rounded-md border-2 p-1.5 text-xs transition ${colorClasses} ${editRing} ${
         dragging ? 'opacity-50' : ''
       } ${mode === 'edit' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
       style={{
@@ -552,7 +1179,129 @@ function TableCard({
           onPointerDown={onResizeStart}
           className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
           aria-label="Ændr størrelse"
-          title="Træk for at ændre størrelse"
+        />
+      )}
+    </div>
+  )
+}
+
+function ZoneShape({
+  zone,
+  mode,
+  selected,
+  dragging,
+  onClick,
+  onDragStart,
+  onDragEnd,
+  onResizeStart,
+}: {
+  zone: Zone
+  mode: 'view' | 'edit'
+  selected: boolean
+  dragging: boolean
+  onClick: (e: ReactMouseEvent) => void
+  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const cfg = ZONE_COLORS[zone.color]
+  const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
+
+  return (
+    <div
+      draggable={mode === 'edit'}
+      onClick={onClick}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`absolute z-10 rounded-md border-2 transition ${editRing} ${
+        dragging ? 'opacity-50' : ''
+      } ${
+        mode === 'edit'
+          ? 'cursor-grab active:cursor-grabbing'
+          : 'pointer-events-none'
+      }`}
+      style={{
+        left: zone.grid_x * CELL_SIZE,
+        top: zone.grid_y * CELL_SIZE,
+        width: zone.width * CELL_SIZE,
+        height: zone.height * CELL_SIZE,
+        backgroundColor: cfg.bg,
+        borderColor: cfg.border,
+      }}
+    >
+      <div className="pointer-events-none absolute left-1 top-1 flex items-center gap-1">
+        <span className="rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-semibold text-[#111827] shadow-sm">
+          {zone.name}
+        </span>
+        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${cfg.chip}`}>
+          Prio {zone.priority}
+        </span>
+      </div>
+
+      {mode === 'edit' && selected && (
+        <div
+          onPointerDown={onResizeStart}
+          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
+          aria-label="Ændr størrelse"
+        />
+      )}
+    </div>
+  )
+}
+
+function ElementShape({
+  element,
+  mode,
+  selected,
+  dragging,
+  onClick,
+  onDragStart,
+  onDragEnd,
+  onResizeStart,
+}: {
+  element: FloorElement
+  mode: 'view' | 'edit'
+  selected: boolean
+  dragging: boolean
+  onClick: (e: ReactMouseEvent) => void
+  onDragStart: (e: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  onResizeStart: (e: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const cfg = ELEMENT_CONFIGS[element.type]
+  const Icon = cfg.icon
+  const editRing = selected ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
+
+  return (
+    <div
+      draggable={mode === 'edit'}
+      onClick={onClick}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`absolute z-20 flex items-center justify-center gap-1 rounded-md transition ${editRing} ${
+        dragging ? 'opacity-50' : ''
+      } ${
+        mode === 'edit'
+          ? 'cursor-grab active:cursor-grabbing'
+          : 'pointer-events-none'
+      }`}
+      style={{
+        left: element.grid_x * CELL_SIZE,
+        top: element.grid_y * CELL_SIZE,
+        width: element.width * CELL_SIZE,
+        height: element.height * CELL_SIZE,
+        backgroundColor: cfg.bg,
+        border: `2px ${cfg.borderStyle} ${cfg.border}`,
+        color: cfg.textColor,
+      }}
+    >
+      {Icon && <Icon size={16} />}
+      <span className="text-[11px] font-semibold">{element.label ?? cfg.label}</span>
+      {mode === 'edit' && selected && (
+        <div
+          onPointerDown={onResizeStart}
+          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize border-r-2 border-b-2 border-[#f59e0b] bg-white"
+          aria-label="Ændr størrelse"
         />
       )}
     </div>
@@ -669,6 +1418,129 @@ function DetailModal({
             </p>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ZoneFormModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void
+  onSubmit: (input: { name: string; priority: number; color: ZoneColor }) => void
+}) {
+  const [name, setName] = useState('')
+  const [priority, setPriority] = useState(1)
+  const [color, setColor] = useState<ZoneColor>('amber')
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setLocalError('Zonenavn er påkrævet')
+      return
+    }
+    onSubmit({ name: trimmed, priority, color })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-xl border border-[#e5e7eb] bg-white shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
+          <h2 className="text-base font-semibold text-[#111827]">Ny zone</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+            aria-label="Luk"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          {localError && (
+            <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
+              {localError}
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+              Navn
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+              Prioritet (lavere tal = fyldes først)
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={priority}
+              onChange={(e) => setPriority(Number(e.target.value))}
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[#6b7280]">
+              Farve
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ZONE_COLOR_OPTIONS.map((c) => {
+                const cfg = ZONE_COLORS[c]
+                const active = c === color
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={`h-8 w-8 rounded-md border-2 transition ${
+                      active ? 'ring-2 ring-[#f59e0b] ring-offset-1' : ''
+                    }`}
+                    style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
+                    aria-label={c}
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
+            >
+              Annuller
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
+            >
+              Tilføj zone
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

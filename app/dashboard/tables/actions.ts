@@ -1,21 +1,51 @@
 'use server'
 
 /*
- * Required schema (run once in Supabase SQL editor):
+ * Required schema — run once in Supabase SQL editor:
  *
- * CREATE TABLE IF NOT EXISTS restaurant_table_positions (
+ * -- restaurant_table_positions: add floor column for multi-floor support
+ * ALTER TABLE restaurant_table_positions
+ *   ADD COLUMN IF NOT EXISTS floor integer NOT NULL DEFAULT 1;
+ *
+ * -- Structural elements (kitchen, door, bar, window, wall)
+ * CREATE TABLE IF NOT EXISTS restaurant_floor_elements (
  *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  *   restaurant_id uuid REFERENCES restaurants(id) ON DELETE CASCADE,
- *   table_id uuid REFERENCES restaurant_tables(id) ON DELETE CASCADE,
+ *   type text NOT NULL,
+ *   floor integer NOT NULL DEFAULT 1,
  *   grid_x integer NOT NULL DEFAULT 0,
  *   grid_y integer NOT NULL DEFAULT 0,
- *   width integer NOT NULL DEFAULT 2,
- *   height integer NOT NULL DEFAULT 2,
- *   UNIQUE(restaurant_id, table_id)
+ *   width integer NOT NULL DEFAULT 1,
+ *   height integer NOT NULL DEFAULT 1,
+ *   label text,
+ *   created_at timestamptz DEFAULT now()
  * );
+ * ALTER TABLE restaurant_floor_elements ENABLE ROW LEVEL SECURITY;
+ * -- Policies use get_my_restaurant_ids() — see task spec.
  *
- * ALTER TABLE restaurant_table_positions ENABLE ROW LEVEL SECURITY;
- * (See original task spec for policies using get_my_restaurant_ids()).
+ * -- Zones (create if not exists, plus add any missing columns)
+ * CREATE TABLE IF NOT EXISTS restaurant_zones (
+ *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   restaurant_id uuid REFERENCES restaurants(id) ON DELETE CASCADE,
+ *   name text NOT NULL,
+ *   priority integer NOT NULL DEFAULT 1,
+ *   color text NOT NULL DEFAULT 'amber',
+ *   floor integer NOT NULL DEFAULT 1,
+ *   grid_x integer NOT NULL DEFAULT 0,
+ *   grid_y integer NOT NULL DEFAULT 0,
+ *   width integer NOT NULL DEFAULT 4,
+ *   height integer NOT NULL DEFAULT 4,
+ *   created_at timestamptz DEFAULT now()
+ * );
+ * ALTER TABLE restaurant_zones
+ *   ADD COLUMN IF NOT EXISTS floor integer NOT NULL DEFAULT 1,
+ *   ADD COLUMN IF NOT EXISTS color text NOT NULL DEFAULT 'amber',
+ *   ADD COLUMN IF NOT EXISTS priority integer NOT NULL DEFAULT 1,
+ *   ADD COLUMN IF NOT EXISTS grid_x integer NOT NULL DEFAULT 0,
+ *   ADD COLUMN IF NOT EXISTS grid_y integer NOT NULL DEFAULT 0,
+ *   ADD COLUMN IF NOT EXISTS width integer NOT NULL DEFAULT 4,
+ *   ADD COLUMN IF NOT EXISTS height integer NOT NULL DEFAULT 4;
+ * ALTER TABLE restaurant_zones ENABLE ROW LEVEL SECURITY;
  */
 
 import { revalidatePath } from 'next/cache'
@@ -110,11 +140,56 @@ export async function updateTable(id: string, formData: FormData) {
 
 export type TablePositionInput = {
   table_id: string
+  floor: number
   grid_x: number
   grid_y: number
   width: number
   height: number
 }
+
+export type FloorElementType = 'kitchen' | 'door' | 'bar' | 'window' | 'wall'
+
+export type FloorElementInput = {
+  id: string
+  type: FloorElementType
+  floor: number
+  grid_x: number
+  grid_y: number
+  width: number
+  height: number
+  label: string | null
+}
+
+export type ZoneColor = 'amber' | 'green' | 'blue' | 'purple' | 'red' | 'gray'
+
+export type ZoneInput = {
+  id: string
+  name: string
+  priority: number
+  color: ZoneColor
+  floor: number
+  grid_x: number
+  grid_y: number
+  width: number
+  height: number
+}
+
+const VALID_ELEMENT_TYPES: ReadonlySet<string> = new Set([
+  'kitchen',
+  'door',
+  'bar',
+  'window',
+  'wall',
+])
+
+const VALID_ZONE_COLORS: ReadonlySet<string> = new Set([
+  'amber',
+  'green',
+  'blue',
+  'purple',
+  'red',
+  'gray',
+])
 
 export async function saveTablePositions(positions: TablePositionInput[]) {
   const { supabase, restaurantId } = await getRestaurantId()
@@ -127,6 +202,7 @@ export async function saveTablePositions(positions: TablePositionInput[]) {
   const rows = positions.map((p) => ({
     restaurant_id: restaurantId,
     table_id: p.table_id,
+    floor: Math.max(1, Math.floor(p.floor)),
     grid_x: Math.max(0, Math.floor(p.grid_x)),
     grid_y: Math.max(0, Math.floor(p.grid_y)),
     width: Math.max(1, Math.floor(p.width)),
@@ -139,6 +215,116 @@ export async function saveTablePositions(positions: TablePositionInput[]) {
 
   if (error) {
     throw new Error('Kunne ikke gemme positioner: ' + error.message)
+  }
+
+  revalidatePath('/dashboard/tables')
+}
+
+export async function saveFloorElements(elements: FloorElementInput[]) {
+  const { supabase, restaurantId } = await getRestaurantId()
+
+  for (const el of elements) {
+    if (!VALID_ELEMENT_TYPES.has(el.type)) {
+      throw new Error(`Ugyldig elementtype: ${el.type}`)
+    }
+  }
+
+  if (elements.length === 0) {
+    revalidatePath('/dashboard/tables')
+    return
+  }
+
+  const rows = elements.map((e) => ({
+    id: e.id,
+    restaurant_id: restaurantId,
+    type: e.type,
+    floor: Math.max(1, Math.floor(e.floor)),
+    grid_x: Math.max(0, Math.floor(e.grid_x)),
+    grid_y: Math.max(0, Math.floor(e.grid_y)),
+    width: Math.max(1, Math.floor(e.width)),
+    height: Math.max(1, Math.floor(e.height)),
+    label: e.label,
+  }))
+
+  const { error } = await supabase
+    .from('restaurant_floor_elements')
+    .upsert(rows, { onConflict: 'id' })
+
+  if (error) {
+    throw new Error('Kunne ikke gemme elementer: ' + error.message)
+  }
+
+  revalidatePath('/dashboard/tables')
+}
+
+export async function deleteFloorElement(id: string) {
+  const { supabase, restaurantId } = await getRestaurantId()
+
+  const { error } = await supabase
+    .from('restaurant_floor_elements')
+    .delete()
+    .eq('id', id)
+    .eq('restaurant_id', restaurantId)
+
+  if (error) {
+    throw new Error('Kunne ikke slette element: ' + error.message)
+  }
+
+  revalidatePath('/dashboard/tables')
+}
+
+export async function saveZones(zones: ZoneInput[]) {
+  const { supabase, restaurantId } = await getRestaurantId()
+
+  for (const z of zones) {
+    if (!VALID_ZONE_COLORS.has(z.color)) {
+      throw new Error(`Ugyldig farve: ${z.color}`)
+    }
+    if (!z.name.trim()) {
+      throw new Error('Zonenavn er påkrævet')
+    }
+  }
+
+  if (zones.length === 0) {
+    revalidatePath('/dashboard/tables')
+    return
+  }
+
+  const rows = zones.map((z) => ({
+    id: z.id,
+    restaurant_id: restaurantId,
+    name: z.name.trim(),
+    priority: Math.max(1, Math.floor(z.priority)),
+    color: z.color,
+    floor: Math.max(1, Math.floor(z.floor)),
+    grid_x: Math.max(0, Math.floor(z.grid_x)),
+    grid_y: Math.max(0, Math.floor(z.grid_y)),
+    width: Math.max(1, Math.floor(z.width)),
+    height: Math.max(1, Math.floor(z.height)),
+  }))
+
+  const { error } = await supabase
+    .from('restaurant_zones')
+    .upsert(rows, { onConflict: 'id' })
+
+  if (error) {
+    throw new Error('Kunne ikke gemme zoner: ' + error.message)
+  }
+
+  revalidatePath('/dashboard/tables')
+}
+
+export async function deleteZone(id: string) {
+  const { supabase, restaurantId } = await getRestaurantId()
+
+  const { error } = await supabase
+    .from('restaurant_zones')
+    .delete()
+    .eq('id', id)
+    .eq('restaurant_id', restaurantId)
+
+  if (error) {
+    throw new Error('Kunne ikke slette zone: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')
