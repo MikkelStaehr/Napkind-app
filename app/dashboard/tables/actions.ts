@@ -52,39 +52,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-
-async function getRestaurantId() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
-
-  const { data: link } = await supabase
-    .from('restaurant_users')
-    .select('restaurant_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!link?.restaurant_id) {
-    throw new Error('Ingen restaurant fundet for bruger')
-  }
-
-  return { supabase, restaurantId: link.restaurant_id as string }
-}
-
-function parseIntField(value: FormDataEntryValue | null, label: string) {
-  const n = Number(String(value ?? '').trim())
-  if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    throw new Error(`${label} skal være et heltal`)
-  }
-  return n
-}
+import { getRestaurantId, parseIntField } from '@/lib/dal'
 
 export type CreatedTable = {
   id: string

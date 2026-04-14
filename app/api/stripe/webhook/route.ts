@@ -57,7 +57,7 @@ async function handleSubscription(
   })
 
   if (!restaurantId) {
-    console.error('[stripe webhook] Kunne ikke finde restaurant for subscription', subscription.id)
+    console.error('[stripe webhook] Restaurant lookup failed')
     return
   }
 
@@ -79,7 +79,7 @@ async function handleSubscription(
     .eq('id', restaurantId)
 
   if (error) {
-    console.error('[stripe webhook] Kunne ikke opdatere restaurant:', error.message)
+    console.error('[stripe webhook] Restaurant update failed')
   }
 }
 
@@ -130,8 +130,8 @@ export async function POST(request: Request) {
       default:
         break
     }
-  } catch (err) {
-    console.error('[stripe webhook] handler error:', err)
+  } catch {
+    console.error('[stripe webhook] Webhook processing failed')
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 })
   }
 

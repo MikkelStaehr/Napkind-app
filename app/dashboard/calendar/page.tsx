@@ -8,13 +8,7 @@ import {
   type CalendarBooking,
   type TableOption,
 } from './calendar-client'
-
-function toDateKey(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+import { toDateKey } from '@/lib/format'
 
 export default async function CalendarPage() {
   const supabase = await createClient()
@@ -39,26 +33,32 @@ export default async function CalendarPage() {
   const restaurantName =
     (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
 
-  const { data: bookings, error: bookingsError } = await supabase
-    .from('restaurant_bookings')
-    .select(
-      'id, guest_name, guest_phone, party_size, booking_date, booking_time, status, notes, table_id, restaurant_tables(table_number)'
-    )
-    .eq('restaurant_id', link.restaurant_id)
-    .in('status', ['pending', 'confirmed'])
-    .order('booking_date', { ascending: true })
-    .order('booking_time', { ascending: true })
+  const restaurantId = link.restaurant_id as string
+
+  const [
+    { data: bookings, error: bookingsError },
+    { data: tables },
+  ] = await Promise.all([
+    supabase
+      .from('restaurant_bookings')
+      .select(
+        'id, guest_name, guest_phone, party_size, booking_date, booking_time, status, notes, table_id, restaurant_tables(table_number)'
+      )
+      .eq('restaurant_id', restaurantId)
+      .in('status', ['pending', 'confirmed'])
+      .order('booking_date', { ascending: true })
+      .order('booking_time', { ascending: true }),
+    supabase
+      .from('restaurant_tables')
+      .select('id, table_number, capacity, is_active')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .order('table_number', { ascending: true }),
+  ])
 
   if (bookingsError) {
     throw new Error('Kunne ikke hente bookinger: ' + bookingsError.message)
   }
-
-  const { data: tables } = await supabase
-    .from('restaurant_tables')
-    .select('id, table_number, capacity, is_active')
-    .eq('restaurant_id', link.restaurant_id)
-    .eq('is_active', true)
-    .order('table_number', { ascending: true })
 
   const calendarBookings: CalendarBooking[] = (bookings ?? []).map((b) => {
     const tableRel = b.restaurant_tables as { table_number?: number } | null

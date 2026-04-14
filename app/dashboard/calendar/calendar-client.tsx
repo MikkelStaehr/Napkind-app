@@ -15,6 +15,7 @@ import {
   updateBookingStatus,
   type BookingStatus,
 } from '../bookings/actions'
+import { toDateKey } from '@/lib/format'
 
 export type CalendarBooking = {
   id: string
@@ -86,13 +87,6 @@ const statusMeta: Record<BookingStatus, { label: string; badge: string; card: st
     card: 'border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280]',
     dot: 'bg-[#9ca3af]',
   },
-}
-
-function toDateKey(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 function parseDateKey(key: string): Date {

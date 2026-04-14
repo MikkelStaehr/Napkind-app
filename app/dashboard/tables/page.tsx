@@ -11,13 +11,7 @@ import type {
   Zone,
   FloorElement,
 } from './floor-plan'
-
-function toDateKey(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+import { toDateKey } from '@/lib/format'
 
 export default async function TablesPage() {
   const supabase = await createClient()
@@ -42,21 +36,62 @@ export default async function TablesPage() {
   const restaurantName =
     (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
 
-  const { data: tables } = await supabase
-    .from('restaurant_tables')
-    .select('*')
-    .eq('restaurant_id', link.restaurant_id)
-    .order('table_number', { ascending: true })
+  const today = toDateKey(new Date())
+  const restaurantId = link.restaurant_id as string
 
-  const { data: positionRows, error: positionsError } = await supabase
-    .from('restaurant_table_positions')
-    .select('table_id, floor, grid_x, grid_y, width, height')
-    .eq('restaurant_id', link.restaurant_id)
+  const [
+    { data: tables },
+    { data: positionRows, error: positionsError },
+    { data: zoneRows, error: zonesError },
+    { data: elementRows, error: elementsError },
+    { data: bookingRows },
+  ] = await Promise.all([
+    supabase
+      .from('restaurant_tables')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .order('table_number', { ascending: true }),
+    supabase
+      .from('restaurant_table_positions')
+      .select('table_id, floor, grid_x, grid_y, width, height')
+      .eq('restaurant_id', restaurantId),
+    supabase
+      .from('restaurant_zones')
+      .select('id, name, priority, color, floor, grid_x, grid_y, width, height')
+      .eq('restaurant_id', restaurantId),
+    supabase
+      .from('restaurant_floor_elements')
+      .select('id, type, floor, grid_x, grid_y, width, height, rotation, label')
+      .eq('restaurant_id', restaurantId),
+    supabase
+      .from('restaurant_bookings')
+      .select(
+        'id, table_id, guest_name, guest_phone, party_size, booking_time, status, notes'
+      )
+      .eq('restaurant_id', restaurantId)
+      .eq('booking_date', today)
+      .in('status', ['pending', 'confirmed'])
+      .order('booking_time', { ascending: true }),
+  ])
 
   if (positionsError) {
     throw new Error(
       'Kunne ikke hente bordpositioner: ' +
         positionsError.message +
+        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+    )
+  }
+  if (zonesError) {
+    throw new Error(
+      'Kunne ikke hente zoner: ' +
+        zonesError.message +
+        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+    )
+  }
+  if (elementsError) {
+    throw new Error(
+      'Kunne ikke hente plantegning-elementer: ' +
+        elementsError.message +
         ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
     )
   }
@@ -70,19 +105,6 @@ export default async function TablesPage() {
     height: p.height as number,
   }))
 
-  const { data: zoneRows, error: zonesError } = await supabase
-    .from('restaurant_zones')
-    .select('id, name, priority, color, floor, grid_x, grid_y, width, height')
-    .eq('restaurant_id', link.restaurant_id)
-
-  if (zonesError) {
-    throw new Error(
-      'Kunne ikke hente zoner: ' +
-        zonesError.message +
-        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
-    )
-  }
-
   const zones: Zone[] = (zoneRows ?? []).map((z) => ({
     id: z.id as string,
     name: (z.name as string) ?? '',
@@ -95,19 +117,6 @@ export default async function TablesPage() {
     height: (z.height as number | null) ?? 4,
   }))
 
-  const { data: elementRows, error: elementsError } = await supabase
-    .from('restaurant_floor_elements')
-    .select('id, type, floor, grid_x, grid_y, width, height, rotation, label')
-    .eq('restaurant_id', link.restaurant_id)
-
-  if (elementsError) {
-    throw new Error(
-      'Kunne ikke hente plantegning-elementer: ' +
-        elementsError.message +
-        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
-    )
-  }
-
   const elements: FloorElement[] = (elementRows ?? []).map((e) => ({
     id: e.id as string,
     type: e.type as FloorElement['type'],
@@ -119,17 +128,6 @@ export default async function TablesPage() {
     rotation: (e.rotation as number | null) ?? 0,
     label: (e.label as string | null) ?? null,
   }))
-
-  const today = toDateKey(new Date())
-  const { data: bookingRows } = await supabase
-    .from('restaurant_bookings')
-    .select(
-      'id, table_id, guest_name, guest_phone, party_size, booking_time, status, notes'
-    )
-    .eq('restaurant_id', link.restaurant_id)
-    .eq('booking_date', today)
-    .in('status', ['pending', 'confirmed'])
-    .order('booking_time', { ascending: true })
 
   const todayBookings: TodayBooking[] = (bookingRows ?? [])
     .filter((b) => b.table_id)
@@ -194,7 +192,7 @@ export default async function TablesPage() {
             zones={zones}
             elements={elements}
             todayBookings={todayBookings}
-            restaurantId={link.restaurant_id as string}
+            restaurantId={restaurantId}
           />
         </div>
       </main>
