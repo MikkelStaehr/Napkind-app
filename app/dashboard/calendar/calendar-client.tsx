@@ -17,6 +17,9 @@ import {
 } from '../bookings/actions'
 import { toDateKey } from '@/lib/format'
 import { FLOOR_PLAN_HOUR_END, FLOOR_PLAN_HOUR_START } from '@/lib/constants'
+import { useRealtimeRefresh } from '@/lib/hooks/use-realtime-refresh'
+
+const REALTIME_TABLES = ['restaurant_bookings'] as const
 
 export type CalendarBooking = {
   id: string
@@ -160,14 +163,18 @@ function bookingsByDate(bookings: CalendarBooking[]): Map<string, CalendarBookin
 type CreateDraft = { date: string; time: string }
 
 export function CalendarClient({
+  restaurantId,
   bookings,
   tables,
   today,
 }: {
+  restaurantId: string
   bookings: CalendarBooking[]
   tables: TableOption[]
   today: string
 }) {
+  useRealtimeRefresh({ restaurantId, tables: REALTIME_TABLES })
+
   const [view, setView] = useState<View>('day')
   const [focalKey, setFocalKey] = useState<string>(today)
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null)

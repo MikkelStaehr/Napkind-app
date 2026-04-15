@@ -32,6 +32,15 @@ import type {
 } from '../tables/floor-plan'
 import type { FloorElementType, ZoneColor } from '../tables/actions'
 import { confirmBooking, cancelBooking, createWalkIn } from './actions'
+import { useRealtimeRefresh } from '@/lib/hooks/use-realtime-refresh'
+
+const REALTIME_TABLES = [
+  'restaurant_bookings',
+  'restaurant_tables',
+  'restaurant_table_positions',
+  'restaurant_zones',
+  'restaurant_floor_elements',
+] as const
 
 const ALLERGY_KEYWORDS = [
   'allergi',
@@ -253,6 +262,7 @@ function findSuggestions(
 }
 
 export function FloorplanClient({
+  restaurantId,
   restaurantName,
   tables,
   positions,
@@ -261,6 +271,7 @@ export function FloorplanClient({
   bookings,
   today,
 }: {
+  restaurantId: string
   restaurantName: string
   tables: RestaurantTable[]
   positions: TablePosition[]
@@ -269,6 +280,8 @@ export function FloorplanClient({
   bookings: TodayBooking[]
   today: string
 }) {
+  useRealtimeRefresh({ restaurantId, tables: REALTIME_TABLES })
+
   const [currentFloor, setCurrentFloor] = useState(1)
   const [now, setNow] = useState(() => new Date())
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)

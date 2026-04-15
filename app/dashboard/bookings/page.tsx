@@ -102,7 +102,11 @@ export default async function BookingsPage() {
         </div>
 
         <div className="mt-8">
-          <BookingsClient bookings={bookingRows} tables={tableOptions} />
+          <BookingsClient
+            restaurantId={restaurantId}
+            bookings={bookingRows}
+            tables={tableOptions}
+          />
         </div>
       </main>
     </div>

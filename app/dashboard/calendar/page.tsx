@@ -106,6 +106,7 @@ export default async function CalendarPage() {
 
         <div className="mt-8">
           <CalendarClient
+            restaurantId={restaurantId}
             bookings={calendarBookings}
             tables={tableOptions}
             today={toDateKey(new Date())}

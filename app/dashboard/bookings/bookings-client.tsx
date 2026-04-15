@@ -19,6 +19,9 @@ import {
   type BookingStatus,
 } from './actions'
 import { toDateKey } from '@/lib/format'
+import { useRealtimeRefresh } from '@/lib/hooks/use-realtime-refresh'
+
+const REALTIME_TABLES = ['restaurant_bookings'] as const
 
 export type BookingRow = {
   id: string
@@ -113,12 +116,16 @@ function formatTime(t: string): string {
 }
 
 export function BookingsClient({
+  restaurantId,
   bookings,
   tables,
 }: {
+  restaurantId: string
   bookings: BookingRow[]
   tables: TableOption[]
 }) {
+  useRealtimeRefresh({ restaurantId, tables: REALTIME_TABLES })
+
   const [dateFilter, setDateFilter] = useState<DateFilter>('today')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [search, setSearch] = useState('')

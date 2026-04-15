@@ -121,6 +121,7 @@ export default async function FloorplanPage() {
 
   return (
     <FloorplanClient
+      restaurantId={restaurantId}
       restaurantName={restaurantName}
       tables={tables}
       positions={positions}
