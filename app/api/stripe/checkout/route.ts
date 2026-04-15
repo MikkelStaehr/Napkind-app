@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { stripe, VALID_PRICE_IDS } from '@/lib/stripe'
+import { log } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 
@@ -53,6 +54,10 @@ export async function POST(request: Request) {
     }>()
 
   if (restaurantError || !restaurant) {
+    log.error('stripe.checkout.restaurant_load_failed', restaurantError, {
+      restaurantId,
+      userId: user.id,
+    })
     return NextResponse.json(
       { error: 'Kunne ikke indlæse restaurant' },
       { status: 500 }
@@ -62,11 +67,22 @@ export async function POST(request: Request) {
   let customerId = restaurant.stripe_customer_id
 
   if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: restaurant.email ?? user.email ?? undefined,
-      metadata: { restaurant_id: restaurantId },
-    })
-    customerId = customer.id
+    try {
+      const customer = await stripe.customers.create({
+        email: restaurant.email ?? user.email ?? undefined,
+        metadata: { restaurant_id: restaurantId },
+      })
+      customerId = customer.id
+    } catch (err) {
+      log.error('stripe.checkout.customer_create_failed', err, {
+        restaurantId,
+        userId: user.id,
+      })
+      return NextResponse.json(
+        { error: 'Kunne ikke oprette Stripe-kunde' },
+        { status: 502 }
+      )
+    }
 
     const { error: updateError } = await supabaseAdmin
       .from('restaurants')
@@ -74,6 +90,10 @@ export async function POST(request: Request) {
       .eq('id', restaurantId)
 
     if (updateError) {
+      log.error('stripe.checkout.customer_save_failed', updateError, {
+        restaurantId,
+        customerId,
+      })
       return NextResponse.json(
         { error: 'Kunne ikke gemme Stripe-kunde' },
         { status: 500 }
@@ -83,25 +103,42 @@ export async function POST(request: Request) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
   if (!appUrl) {
+    log.error('stripe.checkout.missing_app_url', new Error('NEXT_PUBLIC_APP_URL missing'))
     return NextResponse.json(
       { error: 'Server-konfigurationsfejl: NEXT_PUBLIC_APP_URL mangler' },
       { status: 500 }
     )
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/dashboard?upgraded=true`,
-    cancel_url: `${appUrl}/upgrade`,
-    metadata: { restaurant_id: restaurantId },
-    subscription_data: {
+  let session
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${appUrl}/dashboard?upgraded=true`,
+      cancel_url: `${appUrl}/upgrade`,
       metadata: { restaurant_id: restaurantId },
-    },
-  })
+      subscription_data: {
+        metadata: { restaurant_id: restaurantId },
+      },
+    })
+  } catch (err) {
+    log.error('stripe.checkout.session_create_failed', err, {
+      restaurantId,
+      priceId,
+    })
+    return NextResponse.json(
+      { error: 'Kunne ikke oprette checkout-session' },
+      { status: 502 }
+    )
+  }
 
   if (!session.url) {
+    log.error('stripe.checkout.session_missing_url', new Error('session.url missing'), {
+      sessionId: session.id,
+      restaurantId,
+    })
     return NextResponse.json(
       { error: 'Kunne ikke oprette checkout-session' },
       { status: 500 }

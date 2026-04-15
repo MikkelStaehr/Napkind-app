@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { stripe } from '@/lib/stripe'
+import { log } from '@/lib/logger'
 
 /*
  * Required schema addition (run once in Supabase SQL editor):
@@ -57,7 +58,11 @@ async function handleSubscription(
   })
 
   if (!restaurantId) {
-    console.error('[stripe webhook] Restaurant lookup failed')
+    log.warn('stripe.webhook.restaurant_lookup_failed', {
+      subscriptionId: subscription.id,
+      customerId,
+      metaRestaurantId,
+    })
     return
   }
 
@@ -79,7 +84,10 @@ async function handleSubscription(
     .eq('id', restaurantId)
 
   if (error) {
-    console.error('[stripe webhook] Restaurant update failed')
+    log.error('stripe.webhook.restaurant_update_failed', error, {
+      restaurantId,
+      subscriptionId: subscription.id,
+    })
   }
 }
 
@@ -97,6 +105,9 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, secret)
   } catch (err) {
+    log.warn('stripe.webhook.invalid_signature', {
+      message: err instanceof Error ? err.message : 'unknown',
+    })
     const msg = err instanceof Error ? err.message : 'Invalid signature'
     return NextResponse.json({ error: msg }, { status: 400 })
   }
@@ -130,8 +141,11 @@ export async function POST(request: Request) {
       default:
         break
     }
-  } catch {
-    console.error('[stripe webhook] Webhook processing failed')
+  } catch (err) {
+    log.error('stripe.webhook.handler_failed', err, {
+      eventType: event.type,
+      eventId: event.id,
+    })
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 })
   }
 
