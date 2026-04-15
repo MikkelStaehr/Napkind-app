@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { getRestaurantId, parseIntField } from '@/lib/dal'
+import { sendBookingConfirmation, sendBookingCancellation } from '@/lib/email'
+import { log } from '@/lib/logger'
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled'
 
@@ -54,6 +56,13 @@ export async function updateBookingStatus(
 
   const { supabase, restaurantId } = await getRestaurantId()
 
+  const { data: before } = await supabase
+    .from('restaurant_bookings')
+    .select('status')
+    .eq('id', id)
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('restaurant_bookings')
     .update({ status })
@@ -64,8 +73,54 @@ export async function updateBookingStatus(
     throw new Error('Kunne ikke opdatere booking: ' + error.message)
   }
 
+  if (before?.status !== status && (status === 'confirmed' || status === 'cancelled')) {
+    await notifyGuestAboutStatusChange(id, restaurantId, status)
+  }
+
   revalidatePath('/dashboard/bookings')
   revalidatePath('/dashboard/calendar')
+}
+
+async function notifyGuestAboutStatusChange(
+  bookingId: string,
+  restaurantId: string,
+  status: 'confirmed' | 'cancelled'
+): Promise<void> {
+  const { supabase } = await getRestaurantId()
+
+  const { data: booking } = await supabase
+    .from('restaurant_bookings')
+    .select(
+      'guest_name, guest_email, party_size, booking_date, booking_time, notes, restaurants(name)'
+    )
+    .eq('id', bookingId)
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+
+  if (!booking?.guest_email) return
+
+  const restaurantName =
+    (booking.restaurants as { name?: string } | null)?.name ?? 'Restauranten'
+
+  const input = {
+    to: booking.guest_email as string,
+    guestName: booking.guest_name as string,
+    restaurantName,
+    partySize: booking.party_size as number,
+    bookingDate: booking.booking_date as string,
+    bookingTime: booking.booking_time as string,
+    notes: booking.notes as string | null,
+  }
+
+  try {
+    if (status === 'confirmed') {
+      await sendBookingConfirmation(input)
+    } else {
+      await sendBookingCancellation(input)
+    }
+  } catch (err) {
+    log.error('email.booking_notification_failed', err, { bookingId, status })
+  }
 }
 
 export async function deleteBooking(id: string): Promise<void> {

@@ -33,6 +33,14 @@ import type {
 import type { FloorElementType, ZoneColor } from '../tables/actions'
 import { confirmBooking, cancelBooking, createWalkIn } from './actions'
 import { useRealtimeRefresh } from '@/lib/hooks/use-realtime-refresh'
+import { hasAllergy } from '@/lib/allergy'
+import { formatTime, formatClock, formatDanishDate } from '@/lib/format'
+import {
+  classifyBooking,
+  resolveTableBookings,
+  type TableBookings,
+} from './lib/booking-phase'
+import { findSuggestions, overlaps, type Suggestion } from './lib/suggestions'
 
 const REALTIME_TABLES = [
   'restaurant_bookings',
@@ -41,21 +49,6 @@ const REALTIME_TABLES = [
   'restaurant_zones',
   'restaurant_floor_elements',
 ] as const
-
-const ALLERGY_KEYWORDS = [
-  'allergi',
-  'nødder',
-  'nodder',
-  'gluten',
-  'laktose',
-  'skaldyr',
-  'æg',
-  'aeg',
-  'soja',
-  'selleri',
-  'sennep',
-  'sesam',
-]
 
 const CELL_SIZE_MIN = 12
 const MAX_PARTY_SIZE = 20
@@ -131,135 +124,6 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
   },
 }
 
-function hasAllergy(notes: string | null): boolean {
-  if (!notes) return false
-  const lower = notes.toLowerCase()
-  return ALLERGY_KEYWORDS.some((k) => lower.includes(k))
-}
-
-function formatTime(t: string): string {
-  return t.slice(0, 5)
-}
-
-function formatClock(d: Date): string {
-  return d
-    .toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    .replace('.', ':')
-}
-
-function formatDanishDate(d: Date): string {
-  const s = new Intl.DateTimeFormat('da-DK', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d)
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-type BookingPhase = 'current' | 'upcoming' | 'past'
-
-const CURRENT_WINDOW_BEFORE_MS = 30 * 60 * 1000 // 30 min into the past
-const CURRENT_WINDOW_AFTER_MS = 90 * 60 * 1000 // 90 min into the future
-
-function classifyBooking(b: TodayBooking, now: Date): BookingPhase {
-  const [hh, mm] = b.booking_time.split(':').map(Number)
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 'past'
-  const bookingDate = new Date(now)
-  bookingDate.setHours(hh, mm, 0, 0)
-  const diffMs = bookingDate.getTime() - now.getTime()
-  if (diffMs >= -CURRENT_WINDOW_BEFORE_MS && diffMs <= CURRENT_WINDOW_AFTER_MS) {
-    return 'current'
-  }
-  if (diffMs > CURRENT_WINDOW_AFTER_MS) return 'upcoming'
-  return 'past'
-}
-
-type TableBookings = {
-  current: TodayBooking | null
-  upcoming: TodayBooking | null
-}
-
-function resolveTableBookings(
-  bookings: TodayBooking[],
-  now: Date
-): Map<string, TableBookings> {
-  const m = new Map<string, TableBookings>()
-  for (const b of bookings) {
-    const phase = classifyBooking(b, now)
-    const prev = m.get(b.table_id) ?? { current: null, upcoming: null }
-    if (phase === 'current' && !prev.current) {
-      prev.current = b
-    } else if (phase === 'upcoming') {
-      if (!prev.upcoming || b.booking_time < prev.upcoming.booking_time) {
-        prev.upcoming = b
-      }
-    }
-    m.set(b.table_id, prev)
-  }
-  return m
-}
-
-function overlaps(
-  a: { grid_x: number; grid_y: number; width: number; height: number },
-  b: { grid_x: number; grid_y: number; width: number; height: number }
-): boolean {
-  return (
-    a.grid_x < b.grid_x + b.width &&
-    a.grid_x + a.width > b.grid_x &&
-    a.grid_y < b.grid_y + b.height &&
-    a.grid_y + a.height > b.grid_y
-  )
-}
-
-type Suggestion = {
-  table: RestaurantTable
-  zoneName: string | null
-  zonePriority: number
-  upcomingTime: string | null
-}
-
-function findSuggestions(
-  partySize: number,
-  tables: RestaurantTable[],
-  positions: TablePosition[],
-  zones: Zone[],
-  tableBookings: Map<string, TableBookings>
-): Suggestion[] {
-  const positionByTable = new Map<string, TablePosition>()
-  for (const p of positions) positionByTable.set(p.table_id, p)
-
-  return tables
-    .filter((t) => t.is_active)
-    .filter((t) => t.capacity >= partySize)
-    .filter((t) => !tableBookings.get(t.id)?.current)
-    .map((t) => {
-      const pos = positionByTable.get(t.id)
-      let zonePriority = Number.POSITIVE_INFINITY
-      let zoneName: string | null = null
-      if (pos) {
-        for (const z of zones) {
-          if (z.floor !== pos.floor) continue
-          if (overlaps(pos, z) && z.priority < zonePriority) {
-            zonePriority = z.priority
-            zoneName = z.name
-          }
-        }
-      }
-      const upcoming = tableBookings.get(t.id)?.upcoming ?? null
-      return {
-        table: t,
-        zoneName,
-        zonePriority,
-        upcomingTime: upcoming ? formatTime(upcoming.booking_time) : null,
-      }
-    })
-    .sort((a, b) => {
-      if (a.zonePriority !== b.zonePriority) return a.zonePriority - b.zonePriority
-      return a.table.capacity - partySize - (b.table.capacity - partySize)
-    })
-    .slice(0, 3)
-}
 
 export function FloorplanClient({
   restaurantId,

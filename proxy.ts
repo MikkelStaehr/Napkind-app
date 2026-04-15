@@ -7,7 +7,7 @@ import {
   isSubscriptionActive,
 } from '@/lib/subscription'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const sessionOnly = request.cookies.get(SESSION_ONLY_COOKIE)?.value === '1'
