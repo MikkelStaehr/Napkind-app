@@ -96,7 +96,7 @@ export function TablesClient({
                 key={o.v}
                 type="button"
                 onClick={() => setView(o.v)}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition ${
                   active
                     ? 'bg-[#f59e0b] text-white'
                     : 'text-[#6b7280] hover:text-[#111827]'
@@ -248,7 +248,7 @@ function ListView({
                       setError(null)
                       setDraft({ kind: 'edit', table: t })
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
                     aria-label={`Rediger bord ${t.table_number}`}
                   >
                     <Pencil size={16} />
@@ -257,7 +257,7 @@ function ListView({
                     type="button"
                     onClick={() => handleDelete(t.id, t.table_number)}
                     disabled={isDeleting}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
                     aria-label={`Slet bord ${t.table_number}`}
                   >
                     <Trash2 size={16} />
@@ -302,7 +302,7 @@ function TableForm({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
           aria-label="Luk"
         >
           <X size={16} />

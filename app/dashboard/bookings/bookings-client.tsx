@@ -345,7 +345,7 @@ export function BookingsClient({
                         type="button"
                         onClick={() => handleStatusChange(b.id, 'confirmed')}
                         disabled={isPending}
-                        className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
                       >
                         <Check size={14} />
                         Bekræft
@@ -356,7 +356,7 @@ export function BookingsClient({
                         type="button"
                         onClick={() => handleStatusChange(b.id, 'cancelled')}
                         disabled={isPending}
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
                       >
                         Annuller
                       </button>
@@ -366,7 +366,7 @@ export function BookingsClient({
                         type="button"
                         onClick={() => handleDelete(b.id)}
                         disabled={isPending}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
                         aria-label="Slet booking"
                       >
                         <Trash2 size={16} />
@@ -401,7 +401,7 @@ function FilterPills<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
               active
                 ? 'bg-[#f59e0b] text-white'
                 : 'text-[#6b7280] hover:text-[#111827]'
@@ -438,7 +438,7 @@ function CreateForm({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
           aria-label="Luk"
         >
           <X size={16} />
@@ -507,6 +507,8 @@ function CreateForm({
             id="guest_phone"
             name="guest_phone"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             className={inputClass}
           />
         </Field>
@@ -516,6 +518,8 @@ function CreateForm({
               id="guest_email"
               name="guest_email"
               type="email"
+              inputMode="email"
+              autoComplete="email"
               className={inputClass}
             />
           </Field>

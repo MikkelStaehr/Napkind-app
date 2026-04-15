@@ -135,6 +135,8 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
             id="restaurant_email"
             name="email"
             type="email"
+            inputMode="email"
+            autoComplete="email"
             defaultValue={restaurant.email ?? ''}
             className={inputClass}
           />
@@ -153,6 +155,8 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
             id="phone"
             name="phone"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             defaultValue={restaurant.phone ?? ''}
             className={inputClass}
           />

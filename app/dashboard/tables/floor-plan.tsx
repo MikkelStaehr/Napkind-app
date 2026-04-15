@@ -1103,7 +1103,7 @@ function WizardShell({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
+            className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
           >
             Annuller
           </button>
@@ -2521,7 +2521,7 @@ function FloorTabs({
             <button
               type="button"
               onClick={() => onSelect(f)}
-              className={`px-3 py-1.5 text-xs font-medium ${
+              className={`px-4 py-2 text-sm font-medium ${
                 active ? 'text-white' : 'text-[#111827] hover:text-[#f59e0b]'
               }`}
             >
@@ -2547,7 +2547,7 @@ function FloorTabs({
         <button
           type="button"
           onClick={onAdd}
-          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
+          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
         >
           <Plus size={12} />
           Tilføj etage
@@ -2920,7 +2920,7 @@ function ZoneFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
             aria-label="Luk"
           >
             <X size={16} />

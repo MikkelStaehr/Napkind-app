@@ -498,7 +498,7 @@ export function FloorplanClient({
                   key={o.v}
                   type="button"
                   onClick={() => setPanelTab(o.v)}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
                     active
                       ? 'bg-[#f59e0b] text-white shadow-sm'
                       : 'text-[#6b7280] hover:text-[#111827]'
@@ -1197,7 +1197,7 @@ function WalkInPanel({
                         <button
                           type="button"
                           onClick={() => onChoose(s.table)}
-                          className="inline-flex h-9 items-center rounded-lg bg-[#f59e0b] px-3 text-xs font-semibold text-white hover:bg-[#d97706] transition"
+                          className="inline-flex h-11 items-center rounded-lg bg-[#f59e0b] px-4 text-sm font-semibold text-white hover:bg-[#d97706] transition"
                         >
                           Vælg
                         </button>
@@ -1248,6 +1248,8 @@ function WalkInPanel({
                 </span>
                 <input
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
                   className="h-11 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"

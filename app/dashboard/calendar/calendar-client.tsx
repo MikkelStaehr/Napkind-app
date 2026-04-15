@@ -252,7 +252,7 @@ export function CalendarClient({
                 key={o.v}
                 type="button"
                 onClick={() => setView(o.v)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                   active
                     ? 'bg-[#f59e0b] text-white'
                     : 'text-[#6b7280] hover:text-[#111827]'
@@ -268,7 +268,7 @@ export function CalendarClient({
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
             aria-label="Forrige"
           >
             <ChevronLeft size={16} />
@@ -276,14 +276,14 @@ export function CalendarClient({
           <button
             type="button"
             onClick={goToday}
-            className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#111827] hover:border-[#111827] transition"
+            className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
           >
             I dag
           </button>
           <button
             type="button"
             onClick={() => navigate(1)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
             aria-label="Næste"
           >
             <ChevronRight size={16} />
@@ -396,7 +396,7 @@ function DayView({
                 aria-label={`Opret booking kl. ${time}`}
               >
                 {slot.length === 0 ? (
-                  <span className="text-xs text-transparent group-hover:text-[#f59e0b]">
+                  <span className="text-sm text-[#9ca3af] group-hover:text-[#f59e0b]">
                     + Ny booking kl. {time}
                   </span>
                 ) : (
@@ -686,7 +686,7 @@ function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
             aria-label="Luk"
           >
             <X size={16} />
@@ -775,6 +775,8 @@ function CreateModal({
             id="guest_phone"
             name="guest_phone"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             className={inputClass}
           />
         </Field>
