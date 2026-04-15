@@ -17,11 +17,11 @@ export function UpgradeButton({ priceId }: { priceId: string }) {
       })
       const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null
       if (!res.ok || !data?.url) {
-        throw new Error(data?.error ?? 'Kunne ikke starte checkout')
+        throw new Error(data?.error ?? 'Could not start checkout')
       }
       window.location.href = data.url
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Noget gik galt')
+      setError(e instanceof Error ? e.message : 'Something went wrong')
       setLoading(false)
     }
   }
@@ -34,7 +34,7 @@ export function UpgradeButton({ priceId }: { priceId: string }) {
         disabled={loading}
         className="w-full rounded-lg bg-[#f59e0b] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {loading ? 'Omdirigerer…' : 'Vælg plan'}
+        {loading ? 'Redirecting…' : 'Choose plan'}
       </button>
       {error && (
         <p className="mt-2 text-xs text-[#b91c1c]">{error}</p>

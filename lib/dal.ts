@@ -24,7 +24,7 @@ export async function getRestaurantId(): Promise<RestaurantContext> {
     .maybeSingle()
 
   if (!link?.restaurant_id) {
-    throw new Error('Ingen restaurant fundet for bruger')
+    throw new Error('No restaurant found for user')
   }
 
   return { supabase, restaurantId: link.restaurant_id as string }
@@ -36,7 +36,7 @@ export function parseIntField(
 ): number {
   const n = Number(String(value ?? '').trim())
   if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    throw new Error(`${label} skal være et heltal`)
+    throw new Error(`${label} must be an integer`)
   }
   return n
 }

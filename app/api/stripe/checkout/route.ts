@@ -13,19 +13,19 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 })
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
   }
 
   let body: { priceId?: string }
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: 'Ugyldig forespørgsel' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
   const priceId = body.priceId
   if (!priceId || !VALID_PRICE_IDS.has(priceId)) {
-    return NextResponse.json({ error: 'Ugyldigt abonnementsvalg' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid subscription choice' }, { status: 400 })
   }
 
   const { data: link } = await supabase
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   if (!link?.restaurant_id) {
     return NextResponse.json(
-      { error: 'Ingen restaurant fundet for bruger' },
+      { error: 'No restaurant found for user' },
       { status: 400 }
     )
   }
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       userId: user.id,
     })
     return NextResponse.json(
-      { error: 'Kunne ikke indlæse restaurant' },
+      { error: 'Could not load restaurant' },
       { status: 500 }
     )
   }
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         userId: user.id,
       })
       return NextResponse.json(
-        { error: 'Kunne ikke oprette Stripe-kunde' },
+        { error: 'Could not create Stripe customer' },
         { status: 502 }
       )
     }
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
         customerId,
       })
       return NextResponse.json(
-        { error: 'Kunne ikke gemme Stripe-kunde' },
+        { error: 'Could not save Stripe customer' },
         { status: 500 }
       )
     }
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
   if (!appUrl) {
     log.error('stripe.checkout.missing_app_url', new Error('NEXT_PUBLIC_APP_URL missing'))
     return NextResponse.json(
-      { error: 'Server-konfigurationsfejl: NEXT_PUBLIC_APP_URL mangler' },
+      { error: 'Server configuration error: NEXT_PUBLIC_APP_URL missing' },
       { status: 500 }
     )
   }
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       priceId,
     })
     return NextResponse.json(
-      { error: 'Kunne ikke oprette checkout-session' },
+      { error: 'Could not create checkout session' },
       { status: 502 }
     )
   }
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
       restaurantId,
     })
     return NextResponse.json(
-      { error: 'Kunne ikke oprette checkout-session' },
+      { error: 'Could not create checkout session' },
       { status: 500 }
     )
   }

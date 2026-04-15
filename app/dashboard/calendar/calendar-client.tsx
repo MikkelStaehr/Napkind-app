@@ -42,30 +42,30 @@ export type TableOption = {
 
 type View = 'day' | 'week' | 'month'
 
-const MONTHS_DA = [
-  'januar',
-  'februar',
-  'marts',
-  'april',
-  'maj',
-  'juni',
-  'juli',
-  'august',
-  'september',
-  'oktober',
-  'november',
-  'december',
+const MONTHS_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
-const WEEKDAYS_SHORT = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn']
+const WEEKDAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const WEEKDAYS_LONG = [
-  'mandag',
-  'tirsdag',
-  'onsdag',
-  'torsdag',
-  'fredag',
-  'lørdag',
-  'søndag',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
 ]
 
 const HOURS = Array.from(
@@ -75,19 +75,19 @@ const HOURS = Array.from(
 
 const statusMeta: Record<BookingStatus, { label: string; badge: string; card: string; dot: string }> = {
   pending: {
-    label: 'Afventer',
+    label: 'Pending',
     badge: 'bg-[#fffbeb] text-[#b45309]',
     card: 'border-[#fcd34d] bg-[#fffbeb] text-[#92400e]',
     dot: 'bg-[#f59e0b]',
   },
   confirmed: {
-    label: 'Bekræftet',
+    label: 'Confirmed',
     badge: 'bg-[#ecfdf5] text-[#047857]',
     card: 'border-[#6ee7b7] bg-[#ecfdf5] text-[#065f46]',
     dot: 'bg-[#10b981]',
   },
   cancelled: {
-    label: 'Annulleret',
+    label: 'Cancelled',
     badge: 'bg-[#f3f4f6] text-[#6b7280]',
     card: 'border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280]',
     dot: 'bg-[#9ca3af]',
@@ -121,12 +121,11 @@ function startOfWeekMonday(d: Date): Date {
 }
 
 function formatDayLong(d: Date): string {
-  return `${d.getDate()}. ${MONTHS_DA[d.getMonth()]} ${d.getFullYear()}`
+  return `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`
 }
 
 function formatMonthYear(d: Date): string {
-  const m = MONTHS_DA[d.getMonth()]
-  return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${d.getFullYear()}`
+  return `${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`
 }
 
 function formatWeekRange(start: Date): string {
@@ -134,12 +133,12 @@ function formatWeekRange(start: Date): string {
   const sameMonth = start.getMonth() === end.getMonth()
   const sameYear = start.getFullYear() === end.getFullYear()
   if (sameMonth) {
-    return `${start.getDate()}.–${end.getDate()}. ${MONTHS_DA[end.getMonth()]} ${end.getFullYear()}`
+    return `${start.getDate()}–${end.getDate()} ${MONTHS_EN[end.getMonth()]} ${end.getFullYear()}`
   }
   if (sameYear) {
-    return `${start.getDate()}. ${MONTHS_DA[start.getMonth()]} – ${end.getDate()}. ${MONTHS_DA[end.getMonth()]} ${end.getFullYear()}`
+    return `${start.getDate()} ${MONTHS_EN[start.getMonth()]} – ${end.getDate()} ${MONTHS_EN[end.getMonth()]} ${end.getFullYear()}`
   }
-  return `${start.getDate()}. ${MONTHS_DA[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()}. ${MONTHS_DA[end.getMonth()]} ${end.getFullYear()}`
+  return `${start.getDate()} ${MONTHS_EN[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()} ${MONTHS_EN[end.getMonth()]} ${end.getFullYear()}`
 }
 
 function parseTimeHour(t: string): number {
@@ -205,7 +204,7 @@ export function CalendarClient({
         await createBooking(formData)
         setCreateDraft(null)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke oprette booking')
+        setError(e instanceof Error ? e.message : 'Could not create booking')
       }
     })
   }
@@ -217,7 +216,7 @@ export function CalendarClient({
         await updateBookingStatus(id, status)
         setSelected(null)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke opdatere booking')
+        setError(e instanceof Error ? e.message : 'Could not update booking')
       }
     })
   }
@@ -241,9 +240,9 @@ export function CalendarClient({
         <div className="inline-flex rounded-lg border border-[#e5e7eb] bg-white p-0.5 self-start">
           {(
             [
-              { v: 'day', l: 'Dag' },
-              { v: 'week', l: 'Uge' },
-              { v: 'month', l: 'Måned' },
+              { v: 'day', l: 'Day' },
+              { v: 'week', l: 'Week' },
+              { v: 'month', l: 'Month' },
             ] as { v: View; l: string }[]
           ).map((o) => {
             const active = o.v === view
@@ -269,7 +268,7 @@ export function CalendarClient({
             type="button"
             onClick={() => navigate(-1)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
-            aria-label="Forrige"
+            aria-label="Previous"
           >
             <ChevronLeft size={16} />
           </button>
@@ -278,13 +277,13 @@ export function CalendarClient({
             onClick={goToday}
             className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
           >
-            I dag
+            Today
           </button>
           <button
             type="button"
             onClick={() => navigate(1)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
-            aria-label="Næste"
+            aria-label="Next"
           >
             <ChevronRight size={16} />
           </button>
@@ -377,7 +376,7 @@ function DayView({
     <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white">
       {list.length === 0 && (
         <div className="border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-center text-xs text-[#6b7280]">
-          Ingen bookinger denne dag {isToday ? '— klik på et tidsrum for at oprette' : ''}
+          No bookings this day {isToday ? '— click a time slot to create one' : ''}
         </div>
       )}
       <div className="divide-y divide-[#e5e7eb]">
@@ -393,11 +392,11 @@ function DayView({
                 type="button"
                 onClick={() => onCreate(time)}
                 className="group relative flex-1 px-3 py-2 text-left hover:bg-[#fffbeb] transition"
-                aria-label={`Opret booking kl. ${time}`}
+                aria-label={`Create booking at ${time}`}
               >
                 {slot.length === 0 ? (
                   <span className="text-sm text-[#9ca3af] group-hover:text-[#f59e0b]">
-                    + Ny booking kl. {time}
+                    + New booking at {time}
                   </span>
                 ) : (
                   <div className="flex flex-wrap gap-2">
@@ -442,7 +441,7 @@ function WeekView({
     <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white">
       {totalBookings === 0 && (
         <div className="border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-center text-xs text-[#6b7280]">
-          Ingen bookinger denne uge
+          No bookings this week
         </div>
       )}
       <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-[#e5e7eb] bg-[#f9fafb]">
@@ -485,7 +484,7 @@ function WeekView({
                     type="button"
                     onClick={() => onCreate(dayKey, time)}
                     className="group border-l border-[#e5e7eb] p-1 text-left hover:bg-[#fffbeb] transition"
-                    aria-label={`Opret booking ${dayKey} kl. ${time}`}
+                    aria-label={`Create booking ${dayKey} at ${time}`}
                   >
                     <div className="flex flex-col gap-1">
                       {slot.map((b) => (
@@ -531,7 +530,7 @@ function MonthView({
     <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white">
       {totalInMonth === 0 && (
         <div className="border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-center text-xs text-[#6b7280]">
-          Ingen bookinger denne måned
+          No bookings this month
         </div>
       )}
       <div className="grid grid-cols-7 border-b border-[#e5e7eb] bg-[#f9fafb]">
@@ -579,7 +578,7 @@ function MonthView({
                   {hasPending && (
                     <span
                       className="h-1.5 w-1.5 rounded-full bg-[#f59e0b]"
-                      aria-label="Har afventende bookinger"
+                      aria-label="Has pending bookings"
                     />
                   )}
                   {dayBookings.length > 0 && (
@@ -604,7 +603,7 @@ function MonthView({
                   </div>
                 ))}
                 {extra > 0 && (
-                  <div className="text-[11px] text-[#6b7280]">+{extra} flere</div>
+                  <div className="text-[11px] text-[#6b7280]">+{extra} more</div>
                 )}
               </div>
             </button>
@@ -654,8 +653,8 @@ function BookingCard({
           </span>
           <span>
             {booking.table_number !== null
-              ? `Bord ${booking.table_number}`
-              : 'Intet bord'}
+              ? `Table ${booking.table_number}`
+              : 'No table'}
           </span>
         </div>
       )}
@@ -687,7 +686,7 @@ function Modal({
             type="button"
             onClick={onClose}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-            aria-label="Luk"
+            aria-label="Close"
           >
             <X size={16} />
           </button>
@@ -712,9 +711,9 @@ function CreateModal({
   onClose: () => void
 }) {
   return (
-    <Modal title="Ny booking" onClose={onClose}>
+    <Modal title="New booking" onClose={onClose}>
       <form action={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Gæstenavn" htmlFor="guest_name">
+        <Field label="Guest name" htmlFor="guest_name">
           <input
             id="guest_name"
             name="guest_name"
@@ -723,7 +722,7 @@ function CreateModal({
             className={inputClass}
           />
         </Field>
-        <Field label="Antal personer" htmlFor="party_size">
+        <Field label="Party size" htmlFor="party_size">
           <input
             id="party_size"
             name="party_size"
@@ -735,7 +734,7 @@ function CreateModal({
             className={inputClass}
           />
         </Field>
-        <Field label="Dato" htmlFor="booking_date">
+        <Field label="Date" htmlFor="booking_date">
           <input
             id="booking_date"
             name="booking_date"
@@ -745,7 +744,7 @@ function CreateModal({
             className={inputClass}
           />
         </Field>
-        <Field label="Tid" htmlFor="booking_time">
+        <Field label="Time" htmlFor="booking_time">
           <input
             id="booking_time"
             name="booking_time"
@@ -755,22 +754,22 @@ function CreateModal({
             className={inputClass}
           />
         </Field>
-        <Field label="Bord" htmlFor="table_id">
+        <Field label="Table" htmlFor="table_id">
           <select
             id="table_id"
             name="table_id"
             defaultValue=""
             className={inputClass}
           >
-            <option value="">Intet bord</option>
+            <option value="">No table</option>
             {tables.map((t) => (
               <option key={t.id} value={t.id}>
-                Bord {t.table_number} ({t.capacity} pladser)
+                Table {t.table_number} ({t.capacity} seats)
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Telefon" htmlFor="guest_phone">
+        <Field label="Phone" htmlFor="guest_phone">
           <input
             id="guest_phone"
             name="guest_phone"
@@ -781,7 +780,7 @@ function CreateModal({
           />
         </Field>
         <div className="sm:col-span-2">
-          <Field label="Noter" htmlFor="notes">
+          <Field label="Notes" htmlFor="notes">
             <textarea
               id="notes"
               name="notes"
@@ -797,14 +796,14 @@ function CreateModal({
             onClick={onClose}
             className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
           >
-            Annuller
+            Cancel
           </button>
           <button
             type="submit"
             disabled={pending}
             className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
           >
-            {pending ? 'Opretter…' : 'Opret booking'}
+            {pending ? 'Creating…' : 'Create booking'}
           </button>
         </div>
       </form>
@@ -839,15 +838,15 @@ function DetailModal({
         <div className="flex items-center gap-2 text-[#6b7280]">
           <Clock size={14} />
           <span className="capitalize">{weekday}</span>{' '}
-          {date.getDate()}. {MONTHS_DA[date.getMonth()]} · {formatTime(booking.booking_time)}
+          {date.getDate()} {MONTHS_EN[date.getMonth()]} · {formatTime(booking.booking_time)}
         </div>
 
         <div className="flex items-center gap-2 text-[#6b7280]">
           <Users size={14} />
-          {booking.party_size} pers. ·{' '}
+          {booking.party_size}p ·{' '}
           {booking.table_number !== null
-            ? `Bord ${booking.table_number}`
-            : 'Intet bord'}
+            ? `Table ${booking.table_number}`
+            : 'No table'}
         </div>
 
         {booking.guest_phone && (
@@ -873,7 +872,7 @@ function DetailModal({
             className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
           >
             <Check size={14} />
-            Bekræft
+            Confirm
           </button>
         )}
         <button
@@ -882,7 +881,7 @@ function DetailModal({
           disabled={pending}
           className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
         >
-          Annuller
+          Cancel
         </button>
       </div>
     </Modal>

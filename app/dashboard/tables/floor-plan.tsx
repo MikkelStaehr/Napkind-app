@@ -142,8 +142,8 @@ type ElementConfig = {
 
 const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
   kitchen: {
-    label: 'Køkken',
-    menuLabel: '🍳 Køkken',
+    label: 'Kitchen',
+    menuLabel: '🍳 Kitchen',
     defaultSize: { w: 4, h: 3 },
     bg: '#334155',
     border: '#0f172a',
@@ -152,8 +152,8 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     icon: ChefHat,
   },
   door: {
-    label: 'Dør / Entre',
-    menuLabel: '🚪 Dør/Entre',
+    label: 'Door / Entrance',
+    menuLabel: '🚪 Door/Entrance',
     defaultSize: { w: 2, h: 1 },
     bg: '#f9fafb',
     border: '#6b7280',
@@ -172,8 +172,8 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     icon: Wine,
   },
   window: {
-    label: 'Vindue',
-    menuLabel: '🪟 Vindue',
+    label: 'Window',
+    menuLabel: '🪟 Window',
     defaultSize: { w: 2, h: 1 },
     bg: 'transparent',
     border: '#0ea5e9',
@@ -183,8 +183,8 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     edgeStripe: true,
   },
   wall: {
-    label: 'Væg',
-    menuLabel: '🧱 Væg',
+    label: 'Wall',
+    menuLabel: '🧱 Wall',
     defaultSize: { w: 4, h: 1 },
     bg: '#9ca3af',
     border: '#4b5563',
@@ -582,7 +582,7 @@ export function FloorPlan({
       setExtraFloors([])
       setMode('view')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kunne ikke gemme layout')
+      setError(e instanceof Error ? e.message : 'Could not save layout')
     } finally {
       setSaving(false)
     }
@@ -658,7 +658,7 @@ export function FloorPlan({
       elementsList.some((e) => e.floor === floor)
     if (hasContent) {
       const ok = confirm(
-        `Etage ${floor} indeholder indhold. Slet alt på denne etage?`
+        `Floor ${floor} contains content. Delete everything on this floor?`
       )
       if (!ok) return
       const removeByFloor = <T extends { floor: number }>(
@@ -1105,7 +1105,7 @@ function WizardShell({
             onClick={onCancel}
             className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
           >
-            Annuller
+            Cancel
           </button>
         )}
       </div>
@@ -1116,9 +1116,9 @@ function WizardShell({
 
 function Progress({ step }: { step: WizardStep }) {
   const steps: { n: WizardStep; label: string }[] = [
-    { n: 1, label: 'Lokalets form' },
-    { n: 2, label: 'Elementer & zoner' },
-    { n: 3, label: 'Borde' },
+    { n: 1, label: 'Room shape' },
+    { n: 2, label: 'Elements & zones' },
+    { n: 3, label: 'Tables' },
   ]
   return (
     <ol className="flex flex-wrap items-center gap-3">
@@ -1177,7 +1177,7 @@ function WizardFooter({
           disabled={saving}
           className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition disabled:opacity-50"
         >
-          Tilbage
+          Back
         </button>
       )}
       {step < 3 ? (
@@ -1187,7 +1187,7 @@ function WizardFooter({
           disabled={!canNext}
           className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
         >
-          Næste
+          Next
         </button>
       ) : (
         <button
@@ -1197,7 +1197,7 @@ function WizardFooter({
           className="inline-flex items-center gap-1.5 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
         >
           <Save size={14} />
-          {saving ? 'Gemmer…' : 'Gem layout'}
+          {saving ? 'Saving…' : 'Save layout'}
         </button>
       )}
     </div>
@@ -1232,17 +1232,17 @@ function Step1Shape({
   return (
     <div>
       <h2 className="text-base font-semibold text-[#111827]">
-        Hvordan ser dit lokale ud?
+        What does your room look like?
       </h2>
       <p className="mt-1 text-xs text-[#6b7280]">
-        Vælg rektangel hvis lokalet er firkantet, eller tegn det selv for
-        uregelmæssige rum.
+        Choose rectangle if the room is square, or draw it yourself for
+        irregular spaces.
       </p>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ShapeCard
-          title="Rektangulært lokale"
-          description="Indtast længde og bredde i meter."
+          title="Rectangular room"
+          description="Enter length and width in metres."
           active={shapeMode === 'rect'}
           onSelect={() => setShapeMode('rect')}
         >
@@ -1258,8 +1258,8 @@ function Step1Shape({
         </ShapeCard>
 
         <ShapeCard
-          title="Tegn selv"
-          description="Klik og træk for at markere lokalets gulv."
+          title="Draw yourself"
+          description="Click and drag to mark the room's floor."
           active={shapeMode === 'draw'}
           onSelect={() => setShapeMode('draw')}
         >
@@ -1273,7 +1273,7 @@ function Step1Shape({
       </div>
 
       <div className="mt-4 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-xs text-[#6b7280]">
-        📐 Tegn kun servicegulvet — dvs. det areal hvor gæster og personale færdes. Køkken, lager og personalefaciliteter tilføjes som elementer i næste trin.
+        📐 Draw only the service floor — i.e. the area where guests and staff move. Kitchen, storage, and back-of-house facilities are added as elements in the next step.
       </div>
     </div>
   )
@@ -1340,7 +1340,7 @@ function RectForm({
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Længde (m)</span>
+          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Length (m)</span>
           <input
             type="number"
             min={MIN_METERS}
@@ -1353,7 +1353,7 @@ function RectForm({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Bredde (m)</span>
+          <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Width (m)</span>
           <input
             type="number"
             min={MIN_METERS}
@@ -1367,19 +1367,19 @@ function RectForm({
         </label>
       </div>
       <label className="block">
-        <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Opløsning</span>
+        <span className="mb-1 block text-[11px] font-medium text-[#6b7280]">Resolution</span>
         <select
           value={resolution}
           onChange={(e) => setResolution(Number(e.target.value) as Resolution)}
           disabled={disabled}
           className={inputClass}
         >
-          <option value={GRID_RESOLUTION_LOW}>Lav (1 m/celle)</option>
-          <option value={GRID_RESOLUTION_HIGH}>Høj (0,5 m/celle)</option>
+          <option value={GRID_RESOLUTION_LOW}>Low (1 m/cell)</option>
+          <option value={GRID_RESOLUTION_HIGH}>High (0.5 m/cell)</option>
         </select>
       </label>
       <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
-        Dit grid bliver <strong className="text-[#111827]">{cols} × {rows}</strong> celler
+        Your grid will be <strong className="text-[#111827]">{cols} × {rows}</strong> cells
       </div>
     </div>
   )
@@ -1465,7 +1465,7 @@ function DrawCanvas({
                   active ? 'bg-[#f59e0b] text-white' : 'text-[#6b7280] hover:text-[#111827]'
                 } disabled:opacity-50`}
               >
-                Pensel {s}×{s}
+                Brush {s}×{s}
               </button>
             )
           })}
@@ -1477,7 +1477,7 @@ function DrawCanvas({
           className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-2 py-1 text-[11px] font-medium text-[#6b7280] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
         >
           <Eraser size={12} />
-          Ryd alt
+          Clear all
         </button>
       </div>
 
@@ -1533,16 +1533,16 @@ function DrawCanvas({
         const areaM2 = (activeCells.size * resolution * resolution).toFixed(1)
         return (
           <div className="mt-2 rounded-lg border border-[#e5e7eb] bg-[#fffbeb] px-3 py-1.5 text-[11px] text-[#92400e]">
-            Markeret areal: ca. {widthM} × {heightM} meter ({areaM2} m²)
+            Marked area: approx. {widthM} × {heightM} metres ({areaM2} m²)
           </div>
         )
       })()}
 
       <div className="mt-2 text-[11px] text-[#6b7280]">
-        {activeCells.size} celler markeret
+        {activeCells.size} cells marked
         {activeCells.size > 0 && activeCells.size < DRAW_MIN_CELLS && (
           <span className="ml-1 text-[#b91c1c]">
-            — mindst {DRAW_MIN_CELLS} celler krævet
+            — at least {DRAW_MIN_CELLS} cells required
           </span>
         )}
       </div>
@@ -1680,10 +1680,10 @@ function Step2Elements(props: Step2Props) {
         <aside className="w-full shrink-0 space-y-5 lg:w-56">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-              Elementer
+              Elements
             </h3>
             <p className="mt-1 text-[11px] text-[#9ca3af]">
-              Klik et element, og klik derefter en celle for at placere det.
+              Click an element, then click a cell to place it.
             </p>
             <ul className="mt-2 space-y-1">
               {ELEMENT_ORDER.map((t) => {
@@ -1711,22 +1711,22 @@ function Step2Elements(props: Step2Props) {
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-              Zoner
+              Zones
             </h3>
             <p className="mt-1 text-[11px] text-[#9ca3af]">
-              Opret en zone, og træk derefter et rektangel på gridet.
+              Create a zone, then drag a rectangle on the grid.
             </p>
             {pendingZone ? (
               <div className="mt-2 rounded-lg border border-[#f59e0b] bg-[#fffbeb] px-2.5 py-2 text-[11px]">
                 <div className="font-semibold text-[#92400e]">
-                  Træk rektangel for &ldquo;{pendingZone.name}&rdquo;
+                  Drag rectangle for &ldquo;{pendingZone.name}&rdquo;
                 </div>
                 <button
                   type="button"
                   onClick={onCancelZoneForm}
                   className="mt-1 text-[10px] font-medium text-[#b45309] hover:underline"
                 >
-                  Annuller
+                  Cancel
                 </button>
               </div>
             ) : (
@@ -1736,7 +1736,7 @@ function Step2Elements(props: Step2Props) {
                 className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-2.5 py-2 text-xs font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
               >
                 <Plus size={12} />
-                Tilføj zone
+                Add zone
               </button>
             )}
 
@@ -1749,7 +1749,7 @@ function Step2Elements(props: Step2Props) {
                     className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#111827] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
                   >
                     <RotateCw size={12} />
-                    Roter
+                    Rotate
                   </button>
                 )}
                 <button
@@ -1758,10 +1758,10 @@ function Step2Elements(props: Step2Props) {
                   className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#fecaca] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
                 >
                   <Trash2 size={12} />
-                  Slet valgte ({selectedItem.kind === 'zone' ? 'zone' : 'element'})
+                  Delete selected ({selectedItem.kind === 'zone' ? 'zone' : 'element'})
                 </button>
                 <p className="text-[10px] text-[#9ca3af]">
-                  (eller tryk Backspace for at slette)
+                  (or press Backspace to delete)
                 </p>
               </div>
             )}
@@ -1958,13 +1958,13 @@ function Step3Tables(props: Step3Props) {
         <aside className="w-full shrink-0 space-y-3 lg:w-56">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-              Ikke placeret
+              Not placed
             </h3>
             <p className="mt-1 text-[11px] text-[#9ca3af]">
-              Træk et bord ind på gridet for at placere det på etage {currentFloor}.
+              Drag a table onto the grid to place it on floor {currentFloor}.
             </p>
             {unplacedTables.length === 0 ? (
-              <p className="mt-2 text-xs text-[#6b7280]">Alle borde er placeret.</p>
+              <p className="mt-2 text-xs text-[#6b7280]">All tables are placed.</p>
             ) : (
               <ul className="mt-2 space-y-2">
                 {unplacedTables.map((t) => (
@@ -1975,9 +1975,9 @@ function Step3Tables(props: Step3Props) {
                       onDragEnd={onItemDragEnd}
                       className="cursor-grab rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2.5 py-2 text-xs text-[#111827] hover:border-[#f59e0b] active:cursor-grabbing"
                     >
-                      <div className="font-semibold">Bord {t.table_number}</div>
+                      <div className="font-semibold">Table {t.table_number}</div>
                       <div className="text-[10px] text-[#6b7280]">
-                        {t.capacity} pladser
+                        {t.capacity} seats
                       </div>
                     </div>
                   </li>
@@ -1993,7 +1993,7 @@ function Step3Tables(props: Step3Props) {
               className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#fecaca] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#b91c1c] hover:bg-[#fef2f2] transition"
             >
               <Trash2 size={12} />
-              Fjern bord fra grid
+              Remove table from grid
             </button>
           )}
 
@@ -2157,7 +2157,7 @@ function ViewMode(props: ViewModeProps) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
         >
           <Pencil size={14} />
-          Rediger layout
+          Edit layout
         </button>
       </div>
 
@@ -2338,7 +2338,7 @@ function ResizeHandles({
           onPointerDown={(e) => onResize(handle, e)}
           className="absolute h-2 w-2 border border-[#9ca3af] bg-white"
           style={{ ...style, zIndex: 50 }}
-          aria-label={`Ændr størrelse (${handle})`}
+          aria-label={`Resize (${handle})`}
         />
       ))}
     </>
@@ -2359,8 +2359,8 @@ function ZoomControls({
         onClick={() => setZoom(zoom - 0.1)}
         disabled={zoom <= 0.5}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] disabled:opacity-40"
-        aria-label="Zoom ud"
-        title="Zoom ud"
+        aria-label="Zoom out"
+        title="Zoom out"
       >
         <Minus size={14} />
       </button>
@@ -2372,8 +2372,8 @@ function ZoomControls({
         onClick={() => setZoom(zoom + 0.1)}
         disabled={zoom >= 2}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] disabled:opacity-40"
-        aria-label="Zoom ind"
-        title="Zoom ind"
+        aria-label="Zoom in"
+        title="Zoom in"
       >
         <Plus size={14} />
       </button>
@@ -2525,7 +2525,7 @@ function FloorTabs({
                 active ? 'text-white' : 'text-[#111827] hover:text-[#f59e0b]'
               }`}
             >
-              Etage {f}
+              Floor {f}
             </button>
             {onDelete && f !== 1 && active && (
               <button
@@ -2535,7 +2535,7 @@ function FloorTabs({
                   onDelete(f)
                 }}
                 className="h-full px-1.5 text-white/90 hover:text-white"
-                aria-label={`Slet etage ${f}`}
+                aria-label={`Delete floor ${f}`}
               >
                 <X size={12} />
               </button>
@@ -2550,7 +2550,7 @@ function FloorTabs({
           className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] hover:border-[#f59e0b] hover:text-[#f59e0b] transition"
         >
           <Plus size={12} />
-          Tilføj etage
+          Add floor
         </button>
       )}
     </div>
@@ -2826,7 +2826,7 @@ function ViewTableCard({
               aria-hidden
             />
             <span className="font-semibold" style={{ fontSize: badgeFont }}>
-              Ledig
+              Available
             </span>
           </div>
         </>
@@ -2861,7 +2861,7 @@ function StatusPopover({
             type="button"
             onClick={onClose}
             className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-            aria-label="Luk"
+            aria-label="Close"
           >
             <X size={14} />
           </button>
@@ -2893,11 +2893,11 @@ function ZoneFormModal({
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      setLocalError('Zonenavn er påkrævet')
+      setLocalError('Zone name is required')
       return
     }
     if (priority < 1 || priority > 10) {
-      setLocalError('Prioritet skal være mellem 1 og 10')
+      setLocalError('Priority must be between 1 and 10')
       return
     }
     onSubmit({ name: name.trim(), priority, color })
@@ -2916,12 +2916,12 @@ function ZoneFormModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
-          <h2 className="text-base font-semibold text-[#111827]">Ny zone</h2>
+          <h2 className="text-base font-semibold text-[#111827]">New zone</h2>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-            aria-label="Luk"
+            aria-label="Close"
           >
             <X size={16} />
           </button>
@@ -2934,7 +2934,7 @@ function ZoneFormModal({
           )}
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-              Navn
+              Name
             </label>
             <input
               type="text"
@@ -2947,7 +2947,7 @@ function ZoneFormModal({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-              Prioritet (1-10, lavere = fyldes først)
+              Priority (1-10, lower = filled first)
             </label>
             <input
               type="number"
@@ -2961,7 +2961,7 @@ function ZoneFormModal({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-[#6b7280]">
-              Farve
+              Colour
             </label>
             <div className="flex flex-wrap gap-2">
               {ZONE_COLOR_OPTIONS.map((c) => {
@@ -2988,13 +2988,13 @@ function ZoneFormModal({
               onClick={onClose}
               className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
             >
-              Annuller
+              Cancel
             </button>
             <button
               type="submit"
               className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
-              Fortsæt
+              Continue
             </button>
           </div>
         </form>
@@ -3030,11 +3030,11 @@ function NewTableForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (tableNumber <= 0) {
-      setError('Bordnummer skal være > 0')
+      setError('Table number must be > 0')
       return
     }
     if (capacity < 1 || capacity > 20) {
-      setError('Kapacitet skal være mellem 1 og 20')
+      setError('Capacity must be between 1 and 20')
       return
     }
     setError(null)
@@ -3046,7 +3046,7 @@ function NewTableForm({
       await onCreate(fd)
       reset()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunne ikke oprette bord')
+      setError(err instanceof Error ? err.message : 'Could not create table')
     } finally {
       setPending(false)
     }
@@ -3060,7 +3060,7 @@ function NewTableForm({
         className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-[#f59e0b] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#b45309] hover:bg-[#fffbeb] transition"
       >
         <Plus size={12} />
-        Nyt bord
+        New table
       </button>
     )
   }
@@ -3078,7 +3078,7 @@ function NewTableForm({
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="mb-0.5 block text-[10px] font-medium text-[#6b7280]">
-            Bord nr.
+            Table no.
           </span>
           <input
             type="number"
@@ -3092,7 +3092,7 @@ function NewTableForm({
         </label>
         <label className="block">
           <span className="mb-0.5 block text-[10px] font-medium text-[#6b7280]">
-            Kapacitet
+            Capacity
           </span>
           <input
             type="number"
@@ -3113,14 +3113,14 @@ function NewTableForm({
           disabled={pending}
           className="text-[11px] font-medium text-[#6b7280] hover:text-[#111827] disabled:opacity-50"
         >
-          Annuller
+          Cancel
         </button>
         <button
           type="submit"
           disabled={pending}
           className="rounded-lg bg-[#f59e0b] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
         >
-          {pending ? 'Opretter…' : 'Opret'}
+          {pending ? 'Creating…' : 'Create'}
         </button>
       </div>
     </form>

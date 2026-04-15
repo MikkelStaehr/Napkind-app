@@ -65,14 +65,14 @@ export function TablesClient({
   }
 
   const handleDelete = (id: string, tableNumber: number) => {
-    if (!confirm(`Slet bord ${tableNumber}?`)) return
+    if (!confirm(`Delete table ${tableNumber}?`)) return
     setError(null)
     setDeletingId(id)
     startTransition(async () => {
       try {
         await deleteTable(id)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke slette bord')
+        setError(e instanceof Error ? e.message : 'Could not delete table')
       } finally {
         setDeletingId(null)
       }
@@ -85,8 +85,8 @@ export function TablesClient({
         <div className="inline-flex rounded-lg border border-[#e5e7eb] bg-white p-0.5">
           {(
             [
-              { v: 'list', l: 'Liste', icon: List },
-              { v: 'plan', l: 'Plantegning', icon: LayoutGrid },
+              { v: 'list', l: 'List', icon: List },
+              { v: 'plan', l: 'Floor plan', icon: LayoutGrid },
             ] as { v: ViewMode; l: string; icon: typeof List }[]
           ).map((o) => {
             const active = o.v === view
@@ -116,7 +116,7 @@ export function TablesClient({
             className="inline-flex items-center gap-2 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
           >
             <Plus size={16} />
-            Nyt bord
+            New table
           </button>
         )}
       </div>
@@ -207,7 +207,7 @@ function ListView({
       {tables.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-white px-6 py-12 text-center">
           <p className="text-sm text-[#6b7280]">
-            Du har ingen borde endnu. Opret dit første bord for at komme i gang.
+            You don&apos;t have any tables yet. Create your first table to get started.
           </p>
         </div>
       ) : (
@@ -225,20 +225,20 @@ function ListView({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-[#111827]">
-                      Bord {t.table_number}
+                      Table {t.table_number}
                     </span>
                     {t.is_active ? (
                       <span className="inline-flex items-center rounded-full bg-[#ecfdf5] px-2 py-0.5 text-xs font-medium text-[#047857]">
-                        Aktiv
+                        Active
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-[#f3f4f6] px-2 py-0.5 text-xs font-medium text-[#6b7280]">
-                        Inaktiv
+                        Inactive
                       </span>
                     )}
                   </div>
                   <div className="mt-0.5 text-xs text-[#6b7280]">
-                    {t.capacity} pladser · Prioritet {t.priority}
+                    {t.capacity} seats · Priority {t.priority}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -249,7 +249,7 @@ function ListView({
                       setDraft({ kind: 'edit', table: t })
                     }}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-                    aria-label={`Rediger bord ${t.table_number}`}
+                    aria-label={`Edit table ${t.table_number}`}
                   >
                     <Pencil size={16} />
                   </button>
@@ -258,7 +258,7 @@ function ListView({
                     onClick={() => handleDelete(t.id, t.table_number)}
                     disabled={isDeleting}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
-                    aria-label={`Slet bord ${t.table_number}`}
+                    aria-label={`Delete table ${t.table_number}`}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -297,20 +297,20 @@ function TableForm({
     >
       <div className="flex items-start justify-between">
         <h2 className="text-base font-semibold text-[#111827]">
-          {isEdit ? 'Rediger bord' : 'Nyt bord'}
+          {isEdit ? 'Edit table' : 'New table'}
         </h2>
         <button
           type="button"
           onClick={onCancel}
           className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-          aria-label="Luk"
+          aria-label="Close"
         >
           <X size={16} />
         </button>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Bordnummer" htmlFor="table_number">
+        <Field label="Table number" htmlFor="table_number">
           <input
             id="table_number"
             name="table_number"
@@ -322,7 +322,7 @@ function TableForm({
             className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
           />
         </Field>
-        <Field label="Kapacitet" htmlFor="capacity">
+        <Field label="Capacity" htmlFor="capacity">
           <input
             id="capacity"
             name="capacity"
@@ -334,7 +334,7 @@ function TableForm({
             className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
           />
         </Field>
-        <Field label="Prioritet" htmlFor="priority">
+        <Field label="Priority" htmlFor="priority">
           <input
             id="priority"
             name="priority"
@@ -354,7 +354,7 @@ function TableForm({
           defaultChecked={initial.is_active}
           className="h-4 w-4 rounded border-[#d1d5db] text-[#f59e0b] focus:ring-[#f59e0b]"
         />
-        Aktivt bord
+        Active table
       </label>
 
       <div className="mt-5 flex items-center justify-end gap-2">
@@ -363,14 +363,14 @@ function TableForm({
           onClick={onCancel}
           className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
         >
-          Annuller
+          Cancel
         </button>
         <button
           type="submit"
           disabled={pending}
           className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
         >
-          {pending ? 'Gemmer…' : isEdit ? 'Gem ændringer' : 'Opret bord'}
+          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create table'}
         </button>
       </div>
     </form>

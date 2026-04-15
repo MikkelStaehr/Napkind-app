@@ -8,7 +8,7 @@ export default function Home() {
           Napkind
         </h1>
         <p className="mt-6 text-lg text-[#6b7280]">
-          Det enkle booking system til din restaurant
+          The simple booking system for your restaurant
         </p>
 
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
@@ -16,13 +16,13 @@ export default function Home() {
             href="/register"
             className="inline-flex items-center justify-center rounded-lg bg-[#111827] px-6 py-3 text-sm font-medium text-white hover:bg-[#1f2937] transition"
           >
-            Kom i gang gratis
+            Get started free
           </Link>
           <Link
             href="/login"
             className="inline-flex items-center justify-center rounded-lg border border-[#111827] bg-white px-6 py-3 text-sm font-medium text-[#111827] hover:bg-[#f9fafb] transition"
           >
-            Log ind
+            Log in
           </Link>
         </div>
       </div>

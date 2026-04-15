@@ -11,16 +11,16 @@ export async function createBooking(formData: FormData): Promise<void> {
   const guestName = String(formData.get('guest_name') ?? '').trim()
   const guestEmail = String(formData.get('guest_email') ?? '').trim()
   const guestPhone = String(formData.get('guest_phone') ?? '').trim()
-  const partySize = parseIntField(formData.get('party_size'), 'Antal personer')
+  const partySize = parseIntField(formData.get('party_size'), 'Party size')
   const bookingDate = String(formData.get('booking_date') ?? '').trim()
   const bookingTime = String(formData.get('booking_time') ?? '').trim()
   const tableIdRaw = String(formData.get('table_id') ?? '').trim()
   const notes = String(formData.get('notes') ?? '').trim()
 
-  if (partySize <= 0) throw new Error('Antal personer skal være større end 0')
-  if (!guestName) throw new Error('Gæstenavn er påkrævet')
-  if (!bookingDate) throw new Error('Dato er påkrævet')
-  if (!bookingTime) throw new Error('Tid er påkrævet')
+  if (partySize <= 0) throw new Error('Party size must be greater than 0')
+  if (!guestName) throw new Error('Guest name is required')
+  if (!bookingDate) throw new Error('Date is required')
+  if (!bookingTime) throw new Error('Time is required')
 
   const { supabase, restaurantId } = await getRestaurantId()
 
@@ -39,7 +39,7 @@ export async function createBooking(formData: FormData): Promise<void> {
   })
 
   if (error) {
-    throw new Error('Kunne ikke oprette booking: ' + error.message)
+    throw new Error('Could not create booking: ' + error.message)
   }
 
   revalidatePath('/dashboard/bookings')
@@ -51,7 +51,7 @@ export async function updateBookingStatus(
   status: BookingStatus
 ): Promise<void> {
   if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
-    throw new Error('Ugyldig status')
+    throw new Error('Invalid status')
   }
 
   const { supabase, restaurantId } = await getRestaurantId()
@@ -70,7 +70,7 @@ export async function updateBookingStatus(
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke opdatere booking: ' + error.message)
+    throw new Error('Could not update booking: ' + error.message)
   }
 
   if (before?.status !== status && (status === 'confirmed' || status === 'cancelled')) {
@@ -100,7 +100,7 @@ async function notifyGuestAboutStatusChange(
   if (!booking?.guest_email) return
 
   const restaurantName =
-    (booking.restaurants as { name?: string } | null)?.name ?? 'Restauranten'
+    (booking.restaurants as { name?: string } | null)?.name ?? 'The restaurant'
 
   const input = {
     to: booking.guest_email as string,
@@ -134,15 +134,15 @@ export async function deleteBooking(id: string): Promise<void> {
     .maybeSingle()
 
   if (fetchError) {
-    throw new Error('Kunne ikke hente booking: ' + fetchError.message)
+    throw new Error('Could not load booking: ' + fetchError.message)
   }
 
   if (!existing) {
-    throw new Error('Booking findes ikke')
+    throw new Error('Booking not found')
   }
 
   if (existing.status !== 'cancelled') {
-    throw new Error('Kun annullerede bookinger kan slettes')
+    throw new Error('Only cancelled bookings can be deleted')
   }
 
   const { error } = await supabase
@@ -152,7 +152,7 @@ export async function deleteBooking(id: string): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke slette booking: ' + error.message)
+    throw new Error('Could not delete booking: ' + error.message)
   }
 
   revalidatePath('/dashboard/bookings')

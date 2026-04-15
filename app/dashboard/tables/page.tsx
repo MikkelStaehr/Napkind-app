@@ -34,7 +34,7 @@ export default async function TablesPage() {
   }
 
   const restaurantName =
-    (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
+    (link.restaurants as { name?: string } | null)?.name ?? 'Your restaurant'
 
   const today = toDateKey(new Date())
   const restaurantId = link.restaurant_id as string
@@ -76,23 +76,23 @@ export default async function TablesPage() {
 
   if (positionsError) {
     throw new Error(
-      'Kunne ikke hente bordpositioner: ' +
+      'Could not load table positions: ' +
         positionsError.message +
-        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+        ' — have you run the migrations from app/dashboard/tables/actions.ts?'
     )
   }
   if (zonesError) {
     throw new Error(
-      'Kunne ikke hente zoner: ' +
+      'Could not load zones: ' +
         zonesError.message +
-        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+        ' — have you run the migrations from app/dashboard/tables/actions.ts?'
     )
   }
   if (elementsError) {
     throw new Error(
-      'Kunne ikke hente plantegning-elementer: ' +
+      'Could not load floor plan elements: ' +
         elementsError.message +
-        ' — har du kørt migrationerne fra app/dashboard/tables/actions.ts?'
+        ' — have you run the migrations from app/dashboard/tables/actions.ts?'
     )
   }
 
@@ -158,10 +158,10 @@ export default async function TablesPage() {
         <div className="mt-6 flex items-end justify-between gap-4">
           <div>
             <h1 className="font-logo text-4xl tracking-tight text-[#111827]">
-              Borde
+              Tables
             </h1>
             <p className="mt-2 text-sm text-[#6b7280]">
-              Administrer dine borde, kapacitet og prioritet
+              Manage your tables, capacity, and priority
             </p>
           </div>
         </div>

@@ -10,21 +10,18 @@ export function formatTime(t: string): string {
 }
 
 export function formatClock(d: Date): string {
-  return d
-    .toLocaleTimeString('da-DK', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-    .replace('.', ':')
+  return d.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
-export function formatDanishDate(d: Date): string {
-  const s = new Intl.DateTimeFormat('da-DK', {
+export function formatLongDate(d: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   }).format(d)
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }

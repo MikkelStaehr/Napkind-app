@@ -31,7 +31,7 @@ export default async function CalendarPage() {
   }
 
   const restaurantName =
-    (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
+    (link.restaurants as { name?: string } | null)?.name ?? 'Your restaurant'
 
   const restaurantId = link.restaurant_id as string
 
@@ -57,7 +57,7 @@ export default async function CalendarPage() {
   ])
 
   if (bookingsError) {
-    throw new Error('Kunne ikke hente bookinger: ' + bookingsError.message)
+    throw new Error('Could not load bookings: ' + bookingsError.message)
   }
 
   const calendarBookings: CalendarBooking[] = (bookings ?? []).map((b) => {
@@ -97,10 +97,10 @@ export default async function CalendarPage() {
 
         <div className="mt-6">
           <h1 className="font-logo text-4xl tracking-tight text-[#111827]">
-            Kalender
+            Calendar
           </h1>
           <p className="mt-2 text-sm text-[#6b7280]">
-            Se og administrer bookinger pr. dag, uge eller måned
+            View and manage bookings by day, week, or month
           </p>
         </div>
 

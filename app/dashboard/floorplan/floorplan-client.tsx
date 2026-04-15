@@ -34,7 +34,7 @@ import type { FloorElementType, ZoneColor } from '../tables/actions'
 import { confirmBooking, cancelBooking, createWalkIn } from './actions'
 import { useRealtimeRefresh } from '@/lib/hooks/use-realtime-refresh'
 import { hasAllergy } from '@/lib/allergy'
-import { formatTime, formatClock, formatDanishDate } from '@/lib/format'
+import { formatTime, formatClock, formatLongDate } from '@/lib/format'
 import {
   classifyBooking,
   resolveTableBookings,
@@ -74,7 +74,7 @@ type ElementConfig = {
 
 const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
   kitchen: {
-    label: 'Køkken',
+    label: 'Kitchen',
     bg: '#334155',
     border: '#0f172a',
     borderStyle: 'solid',
@@ -82,7 +82,7 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     icon: ChefHat,
   },
   door: {
-    label: 'Dør',
+    label: 'Door',
     bg: '#f9fafb',
     border: '#6b7280',
     borderStyle: 'dashed',
@@ -98,7 +98,7 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     icon: Wine,
   },
   window: {
-    label: 'Vindue',
+    label: 'Window',
     bg: 'transparent',
     border: '#0ea5e9',
     borderStyle: 'solid',
@@ -107,7 +107,7 @@ const ELEMENT_CONFIGS: Record<FloorElementType, ElementConfig> = {
     edgeStripe: true,
   },
   wall: {
-    label: 'Væg',
+    label: 'Wall',
     bg: '#9ca3af',
     border: '#4b5563',
     borderStyle: 'solid',
@@ -316,7 +316,7 @@ export function FloorplanClient({
       try {
         await confirmBooking(bookingId)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke bekræfte booking')
+        setError(e instanceof Error ? e.message : 'Could not confirm booking')
       }
     })
   }
@@ -328,7 +328,7 @@ export function FloorplanClient({
         await cancelBooking(bookingId)
         setSelectedTableId(null)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke annullere booking')
+        setError(e instanceof Error ? e.message : 'Could not cancel booking')
       }
     })
   }
@@ -353,7 +353,7 @@ export function FloorplanClient({
             {(
               [
                 { v: 'walkin', l: 'Walk-in' },
-                { v: 'oversigt', l: 'Oversigt' },
+                { v: 'oversigt', l: 'Overview' },
               ] as { v: typeof panelTab; l: string }[]
             ).map((o) => {
               const active = o.v === panelTab
@@ -430,7 +430,7 @@ export function FloorplanClient({
         })
         resetWalkIn()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke oprette walk-in')
+        setError(e instanceof Error ? e.message : 'Could not create walk-in')
       }
     })
   }
@@ -449,14 +449,14 @@ export function FloorplanClient({
         <div className="flex items-center gap-3">
           <span className="font-logo text-xl font-bold tracking-tight">Napkind</span>
           <span className="text-xs uppercase tracking-wide text-white/60">
-            Restaurantvisning
+            Floor view
           </span>
           <span className="hidden text-sm text-white/80 md:inline">· {restaurantName}</span>
         </div>
 
         <div className="flex items-center gap-2 text-sm tabular-nums text-white/90 sm:text-base">
           <Clock size={16} className="text-white/70" />
-          <span className="hidden sm:inline">{formatDanishDate(now)} · </span>
+          <span className="hidden sm:inline">{formatLongDate(now)} · </span>
           <span>{formatClock(now)}</span>
         </div>
 
@@ -474,7 +474,7 @@ export function FloorplanClient({
                       active ? 'bg-[#f59e0b] text-white' : 'text-white/70 hover:text-white'
                     }`}
                   >
-                    Etage {f}
+                    Floor {f}
                   </button>
                 )
               })}
@@ -485,7 +485,7 @@ export function FloorplanClient({
             className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 text-sm font-medium text-white hover:bg-white/10 transition"
           >
             <X size={16} />
-            Luk
+            Close
           </Link>
         </div>
       </header>
@@ -552,7 +552,7 @@ export function FloorplanClient({
           type="button"
           onClick={() => setMobileWalkInOpen(true)}
           className="fixed bottom-5 right-5 z-[55] inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#f59e0b] text-white shadow-lg hover:bg-[#d97706] transition md:hidden"
-          aria-label="Opret walk-in"
+          aria-label="Create walk-in"
         >
           <Plus size={24} />
         </button>
@@ -596,7 +596,7 @@ function OversigtList({
   if (rows.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-[#6b7280]">
-        Ingen borde endnu
+        No tables yet
       </div>
     )
   }
@@ -622,7 +622,7 @@ function OversigtList({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-bold text-[#111827]">
-                    Bord {r.table.table_number}
+                    Table {r.table.table_number}
                   </span>
                   <span className="rounded-full bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-medium text-[#374151]">
                     {r.table.capacity} pers.
@@ -647,7 +647,7 @@ function OversigtList({
                     </span>
                   </div>
                 ) : (
-                  <div className="mt-0.5 text-xs text-[#6b7280]">Ledig</div>
+                  <div className="mt-0.5 text-xs text-[#6b7280]">Available</div>
                 )}
 
                 {r.upcoming && !r.current && (
@@ -733,9 +733,9 @@ function OpsTableCard({
   }
 
   const statusBadge: Record<typeof status, { label: string; className: string }> = {
-    ledig: { label: 'Ledig', className: 'bg-[#f3f4f6] text-[#6b7280]' },
-    afventer: { label: 'Afventer', className: 'bg-[#fffbeb] text-[#b45309]' },
-    optaget: { label: 'Optaget', className: 'bg-[#ecfdf5] text-[#047857]' },
+    ledig: { label: 'Available', className: 'bg-[#f3f4f6] text-[#6b7280]' },
+    afventer: { label: 'Pending', className: 'bg-[#fffbeb] text-[#b45309]' },
+    optaget: { label: 'Seated', className: 'bg-[#ecfdf5] text-[#047857]' },
   }
 
   const selectedRing = selected ? 'ring-2 ring-[#0ea5e9] ring-offset-1' : ''
@@ -772,7 +772,7 @@ function OpsTableCard({
             height: 8,
             animation: 'napkind-pulse 1.2s ease-in-out infinite',
           }}
-          aria-label="Allergi"
+          aria-label="Allergy"
         />
       )}
 
@@ -786,7 +786,7 @@ function OpsTableCard({
         <>
           <div className="flex items-start justify-between gap-1">
             <div className="font-bold leading-tight" style={{ fontSize: numberFont }}>
-              Bord {table.table_number}
+              Table {table.table_number}
             </div>
             <div
               className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 font-medium text-[#374151]"
@@ -819,9 +819,9 @@ function OpsTableCard({
               )}
             </div>
           ) : upcoming ? (
-            <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
+            <div className="mt-1 text-[11px] text-[#9ca3af]">Available</div>
           ) : (
-            <div className="mt-1 text-[11px] text-[#9ca3af]">Ledig</div>
+            <div className="mt-1 text-[11px] text-[#9ca3af]">Available</div>
           )}
 
           <div className="mt-auto flex items-center justify-between gap-1">
@@ -975,14 +975,14 @@ function WalkInPanel({
         {step === 'size' && (
           <div>
             <label className="block text-xs font-medium text-[#6b7280]">
-              Antal personer
+              Party size
             </label>
             <div className="mt-2 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPartySize(Math.max(1, partySize - 1))}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#111827] hover:border-[#111827] transition"
-                aria-label="Færre"
+                aria-label="Fewer"
               >
                 <Minus size={16} />
               </button>
@@ -1003,7 +1003,7 @@ function WalkInPanel({
                 type="button"
                 onClick={() => setPartySize(Math.min(MAX_PARTY_SIZE, partySize + 1))}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#111827] hover:border-[#111827] transition"
-                aria-label="Flere"
+                aria-label="More"
               >
                 <Plus size={16} />
               </button>
@@ -1014,7 +1014,7 @@ function WalkInPanel({
               onClick={onFind}
               className="mt-4 h-11 w-full rounded-lg bg-[#f59e0b] px-4 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
-              Find bord
+              Find table
             </button>
           </div>
         )}
@@ -1026,16 +1026,16 @@ function WalkInPanel({
               onClick={onBackToSize}
               className="text-xs font-medium text-[#6b7280] hover:text-[#111827]"
             >
-              ← Skift antal personer
+              ← Change party size
             </button>
 
             <h3 className="mt-3 text-sm font-semibold text-[#111827]">
-              Forslag til {partySize} pers.
+              Suggestions for {partySize}p
             </h3>
 
             {suggestions.length === 0 ? (
               <div className="mt-3 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-3 text-sm text-[#b91c1c]">
-                Ingen ledige borde med plads til {partySize} pers.
+                No available tables with room for {partySize}p.
               </div>
             ) : (
               <ul className="mt-3 space-y-2">
@@ -1045,7 +1045,7 @@ function WalkInPanel({
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <div className="text-sm font-semibold text-[#111827]">
-                            Bord {s.table.table_number}
+                            Table {s.table.table_number}
                           </div>
                           <div className="mt-0.5 text-xs text-[#6b7280]">
                             {s.table.capacity} pers.
@@ -1054,7 +1054,7 @@ function WalkInPanel({
                           {s.upcomingTime && (
                             <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#b91c1c]">
                               <Clock size={12} />
-                              Optaget igen {s.upcomingTime}
+                              Seated again at {s.upcomingTime}
                             </div>
                           )}
                         </div>
@@ -1063,7 +1063,7 @@ function WalkInPanel({
                           onClick={() => onChoose(s.table)}
                           className="inline-flex h-11 items-center rounded-lg bg-[#f59e0b] px-4 text-sm font-semibold text-white hover:bg-[#d97706] transition"
                         >
-                          Vælg
+                          Select
                         </button>
                       </div>
                     </div>
@@ -1081,22 +1081,22 @@ function WalkInPanel({
               onClick={onBackToSize}
               className="text-xs font-medium text-[#6b7280] hover:text-[#111827]"
             >
-              ← Vælg andet bord
+              ← Pick another table
             </button>
 
             <div className="mt-3 rounded-lg border-2 border-[#10b981] bg-[#ecfdf5] p-3">
               <div className="text-sm font-semibold text-[#065f46]">
-                Bord {chosenTable.table_number}
+                Table {chosenTable.table_number}
               </div>
               <div className="mt-0.5 text-xs text-[#065f46]/80">
-                {chosenTable.capacity} pers. · {partySize} gæster
+                {chosenTable.capacity} seats · {partySize} guests
               </div>
             </div>
 
             <div className="mt-4 space-y-3">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#6b7280]">
-                  Gæstenavn (valgfri)
+                  Guest name (optional)
                 </span>
                 <input
                   type="text"
@@ -1108,7 +1108,7 @@ function WalkInPanel({
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#6b7280]">
-                  Telefon (valgfri)
+                  Phone (optional)
                 </span>
                 <input
                   type="tel"
@@ -1121,7 +1121,7 @@ function WalkInPanel({
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#6b7280]">
-                  Noter / allergier
+                  Notes / allergies
                 </span>
                 <textarea
                   rows={2}
@@ -1138,7 +1138,7 @@ function WalkInPanel({
               disabled={pending}
               className="mt-4 h-11 w-full rounded-lg bg-[#f59e0b] px-4 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
             >
-              {pending ? 'Opretter…' : 'Opret walk-in'}
+              {pending ? 'Creating…' : 'Create walk-in'}
             </button>
           </div>
         )}
@@ -1168,7 +1168,7 @@ function DetailPanel({
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center justify-between border-b border-[#e5e7eb] px-4 py-3">
         <h2 className="text-base font-semibold text-[#111827]">
-          Bord {table.table_number}
+          Table {table.table_number}
         </h2>
         <button
           type="button"
@@ -1179,14 +1179,14 @@ function DetailPanel({
           className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-3 text-xs font-medium text-[#6b7280] hover:border-[#111827] hover:text-[#111827] transition"
         >
           <X size={14} />
-          Luk
+          Close
         </button>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex items-center gap-2 text-sm text-[#6b7280]">
           <Users size={14} />
-          {table.capacity} pladser
+          {table.capacity} seats
         </div>
 
         {booking ? (
@@ -1203,7 +1203,7 @@ function DetailPanel({
                       : 'bg-[#ecfdf5] text-[#047857]'
                   }`}
                 >
-                  {booking.status === 'pending' ? 'Afventer' : 'Optaget'}
+                  {booking.status === 'pending' ? 'Pending' : 'Seated'}
                 </span>
               </div>
 
@@ -1214,7 +1214,7 @@ function DetailPanel({
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Users size={14} />
-                  {booking.party_size} pers.
+                  {booking.party_size}p
                 </span>
                 {booking.guest_phone && (
                   <span className="inline-flex items-center gap-1">
@@ -1246,7 +1246,7 @@ function DetailPanel({
                   disabled={pending}
                   className="h-11 rounded-lg bg-[#f59e0b] px-4 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
                 >
-                  Bekræft
+                  Confirm
                 </button>
               )}
               <button
@@ -1255,13 +1255,13 @@ function DetailPanel({
                 disabled={pending}
                 className="h-11 rounded-lg border border-[#e5e7eb] bg-white px-4 text-sm font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
               >
-                Annuller booking
+                Cancel booking
               </button>
             </div>
           </div>
         ) : (
           <p className="mt-4 text-sm text-[#6b7280]">
-            Ingen booking på dette bord i dag.
+            No booking on this table today.
           </p>
         )}
       </div>

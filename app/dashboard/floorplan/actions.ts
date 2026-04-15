@@ -18,7 +18,7 @@ async function setBookingStatus(id: string, status: BookingStatus): Promise<void
     .eq('id', id)
     .eq('restaurant_id', restaurantId)
   if (error) {
-    throw new Error('Kunne ikke opdatere booking: ' + error.message)
+    throw new Error('Could not update booking: ' + error.message)
   }
   revalidate()
 }
@@ -42,12 +42,12 @@ export type WalkInInput = {
 }
 
 export async function createWalkIn(input: WalkInInput): Promise<void> {
-  if (!input.tableId) throw new Error('Bord er påkrævet')
+  if (!input.tableId) throw new Error('Table is required')
   if (!Number.isInteger(input.partySize) || input.partySize < 1 || input.partySize > 20) {
-    throw new Error('Antal personer skal være mellem 1 og 20')
+    throw new Error('Party size must be between 1 and 20')
   }
   if (!input.bookingDate || !input.bookingTime) {
-    throw new Error('Dato og tid er påkrævet')
+    throw new Error('Date and time are required')
   }
 
   const { supabase, restaurantId } = await getRestaurantId()
@@ -69,7 +69,7 @@ export async function createWalkIn(input: WalkInInput): Promise<void> {
   })
 
   if (error) {
-    throw new Error('Kunne ikke oprette walk-in: ' + error.message)
+    throw new Error('Could not create walk-in: ' + error.message)
   }
 
   revalidate()

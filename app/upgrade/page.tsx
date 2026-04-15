@@ -12,17 +12,17 @@ import { logout } from '../dashboard/actions'
 import { UpgradeButton } from './upgrade-button'
 
 const monthlyFeatures = [
-  'Ubegrænsede bookinger',
-  'Op til 50 borde',
-  'Kalender og bordstyring',
-  'Email-support',
+  'Unlimited bookings',
+  'Up to 50 tables',
+  'Calendar and table management',
+  'Email support',
 ]
 
 const yearlyFeatures = [
-  'Alt i månedlig',
-  'Spar 44% vs. månedlig',
-  'Prioriteret support',
-  'Tidlig adgang til nye features',
+  'Everything in Monthly',
+  'Save 44% vs. monthly',
+  'Priority support',
+  'Early access to new features',
 ]
 
 export default async function UpgradePage() {
@@ -51,7 +51,7 @@ export default async function UpgradePage() {
               type="submit"
               className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
             >
-              Log ud
+              Log out
             </button>
           </form>
         </div>
@@ -64,7 +64,7 @@ export default async function UpgradePage() {
             className="mb-6 inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#111827] transition"
           >
             <ArrowLeft size={16} />
-            Tilbage til dashboard
+            Back to dashboard
           </Link>
         )}
 
@@ -74,27 +74,27 @@ export default async function UpgradePage() {
             Napkind Premium
           </div>
           <h1 className="mt-4 text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
-            Opgrader til Napkind Premium
+            Upgrade to Napkind Premium
           </h1>
           <p className="mt-3 text-sm text-[#6b7280]">
-            Få adgang til alle features og administrer din restaurant uden begrænsninger.
+            Unlock every feature and manage your restaurant without limits.
           </p>
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <PricingCard
-            label="Månedlig"
+            label="Monthly"
             price="149 kr"
-            period="/md"
-            subtitle="Faktureres månedligt"
+            period="/mo"
+            subtitle="Billed monthly"
             features={monthlyFeatures}
             priceId={PLANS.monthly.priceId}
           />
           <PricingCard
-            label="Årlig"
+            label="Yearly"
             price="999 kr"
-            period="/år"
-            subtitle="Svarende til 83 kr/md — spar 44%"
+            period="/yr"
+            subtitle="Equivalent to 83 kr/mo — save 44%"
             features={yearlyFeatures}
             priceId={PLANS.yearly.priceId}
             highlighted
@@ -102,7 +102,7 @@ export default async function UpgradePage() {
         </div>
 
         <p className="mt-8 text-center text-xs text-[#6b7280]">
-          Priser er ekskl. moms. Opsig når som helst.
+          Prices exclude VAT. Cancel any time.
         </p>
       </main>
     </div>
@@ -134,7 +134,7 @@ function PricingCard({
     >
       {highlighted && (
         <div className="absolute -top-3 left-6 rounded-full bg-[#f59e0b] px-2.5 py-0.5 text-xs font-semibold text-white">
-          Bedste værdi
+          Best value
         </div>
       )}
 

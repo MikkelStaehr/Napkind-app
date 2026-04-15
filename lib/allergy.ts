@@ -1,16 +1,28 @@
 const ALLERGY_KEYWORDS = [
+  'allergy',
   'allergi',
+  'nuts',
   'nødder',
   'nodder',
   'gluten',
+  'lactose',
   'laktose',
+  'dairy',
+  'shellfish',
   'skaldyr',
+  'egg',
   'æg',
   'aeg',
+  'soy',
   'soja',
+  'celery',
   'selleri',
+  'mustard',
   'sennep',
+  'sesame',
   'sesam',
+  'peanut',
+  'fish',
 ]
 
 export function hasAllergy(notes: string | null): boolean {

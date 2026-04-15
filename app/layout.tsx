@@ -20,7 +20,7 @@ const boska = localFont({
 
 export const metadata: Metadata = {
   title: "Napkind",
-  description: "Det enkle booking system til din restaurant",
+  description: "The simple booking system for your restaurant",
 };
 
 export default function RootLayout({
@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="da"
+      lang="en"
       className={`${outfit.variable} ${boska.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-light">{children}</body>

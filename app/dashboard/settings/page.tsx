@@ -48,9 +48,9 @@ export default async function SettingsPage() {
 
   if (restaurantError) {
     throw new Error(
-      'Kunne ikke hente restaurant: ' +
+      'Could not load restaurant: ' +
         restaurantError.message +
-        ' — har du kørt ALTER TABLE fra app/dashboard/settings/actions.ts?'
+        ' — have you run the ALTER TABLE from app/dashboard/settings/actions.ts?'
     )
   }
 
@@ -72,10 +72,10 @@ export default async function SettingsPage() {
         </Link>
 
         <h1 className="mt-6 font-logo text-4xl tracking-tight text-[#111827]">
-          Indstillinger
+          Settings
         </h1>
         <p className="mt-2 text-sm text-[#6b7280]">
-          Administrer din restaurant, abonnement og konto
+          Manage your restaurant, subscription, and account
         </p>
 
         <div className="mt-10">

@@ -75,8 +75,8 @@ export async function createTable(formData: FormData): Promise<CreatedTable> {
       : parseIntField(priorityRaw, 'Prioritet')
   const isActive = formData.get('is_active') === null ? true : formData.get('is_active') === 'on'
 
-  if (tableNumber <= 0) throw new Error('Bordnummer skal være større end 0')
-  if (capacity <= 0) throw new Error('Kapacitet skal være større end 0')
+  if (tableNumber <= 0) throw new Error('Table number must be greater than 0')
+  if (capacity <= 0) throw new Error('Capacity must be greater than 0')
 
   const { supabase, restaurantId } = await getRestaurantId()
 
@@ -93,7 +93,7 @@ export async function createTable(formData: FormData): Promise<CreatedTable> {
     .single()
 
   if (error || !data) {
-    throw new Error('Kunne ikke oprette bord: ' + (error?.message ?? 'ukendt fejl'))
+    throw new Error('Could not create table: ' + (error?.message ?? 'unknown error'))
   }
 
   revalidatePath('/dashboard/tables')
@@ -106,8 +106,8 @@ export async function updateTable(id: string, formData: FormData): Promise<void>
   const priority = parseIntField(formData.get('priority'), 'Prioritet')
   const isActive = formData.get('is_active') === 'on'
 
-  if (tableNumber <= 0) throw new Error('Bordnummer skal være større end 0')
-  if (capacity <= 0) throw new Error('Kapacitet skal være større end 0')
+  if (tableNumber <= 0) throw new Error('Table number must be greater than 0')
+  if (capacity <= 0) throw new Error('Capacity must be greater than 0')
 
   const { supabase, restaurantId } = await getRestaurantId()
 
@@ -123,7 +123,7 @@ export async function updateTable(id: string, formData: FormData): Promise<void>
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke opdatere bord: ' + error.message)
+    throw new Error('Could not update table: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')
@@ -195,7 +195,7 @@ export async function saveTablePositions(
     .eq('restaurant_id', restaurantId)
 
   if (deleteError) {
-    throw new Error('Kunne ikke rydde gamle positioner: ' + deleteError.message)
+    throw new Error('Could not clear old positions: ' + deleteError.message)
   }
 
   if (positions.length > 0) {
@@ -214,7 +214,7 @@ export async function saveTablePositions(
       .insert(rows)
 
     if (insertError) {
-      throw new Error('Kunne ikke gemme positioner: ' + insertError.message)
+      throw new Error('Could not save positions: ' + insertError.message)
     }
   }
 
@@ -228,7 +228,7 @@ export async function saveFloorElements(
 
   for (const el of elements) {
     if (!VALID_ELEMENT_TYPES.has(el.type)) {
-      throw new Error(`Ugyldig elementtype: ${el.type}`)
+      throw new Error(`Invalid element type: ${el.type}`)
     }
   }
 
@@ -238,7 +238,7 @@ export async function saveFloorElements(
     .eq('restaurant_id', restaurantId)
 
   if (deleteError) {
-    throw new Error('Kunne ikke rydde gamle elementer: ' + deleteError.message)
+    throw new Error('Could not clear old elements: ' + deleteError.message)
   }
 
   if (elements.length > 0) {
@@ -264,7 +264,7 @@ export async function saveFloorElements(
       .insert(rows)
 
     if (insertError) {
-      throw new Error('Kunne ikke gemme elementer: ' + insertError.message)
+      throw new Error('Could not save elements: ' + insertError.message)
     }
   }
 
@@ -281,7 +281,7 @@ export async function deleteFloorElement(id: string): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke slette element: ' + error.message)
+    throw new Error('Could not delete element: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')
@@ -292,10 +292,10 @@ export async function saveZones(zones: ZoneInput[]): Promise<void> {
 
   for (const z of zones) {
     if (!VALID_ZONE_COLORS.has(z.color)) {
-      throw new Error(`Ugyldig farve: ${z.color}`)
+      throw new Error(`Invalid colour: ${z.color}`)
     }
     if (!z.name.trim()) {
-      throw new Error('Zonenavn er påkrævet')
+      throw new Error('Zone name is required')
     }
   }
 
@@ -305,7 +305,7 @@ export async function saveZones(zones: ZoneInput[]): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (deleteError) {
-    throw new Error('Kunne ikke rydde gamle zoner: ' + deleteError.message)
+    throw new Error('Could not clear old zones: ' + deleteError.message)
   }
 
   if (zones.length > 0) {
@@ -327,7 +327,7 @@ export async function saveZones(zones: ZoneInput[]): Promise<void> {
       .insert(rows)
 
     if (insertError) {
-      throw new Error('Kunne ikke gemme zoner: ' + insertError.message)
+      throw new Error('Could not save zones: ' + insertError.message)
     }
   }
 
@@ -344,7 +344,7 @@ export async function deleteZone(id: string): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke slette zone: ' + error.message)
+    throw new Error('Could not delete zone: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')
@@ -360,7 +360,7 @@ export async function deleteTable(id: string): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (error) {
-    throw new Error('Kunne ikke slette bord: ' + error.message)
+    throw new Error('Could not delete table: ' + error.message)
   }
 
   revalidatePath('/dashboard/tables')

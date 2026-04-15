@@ -12,11 +12,11 @@ export async function register(formData: FormData) {
   const password = String(formData.get('password') ?? '')
 
   if (!restaurantName || !email || !password) {
-    redirect('/register?error=' + encodeURIComponent('Udfyld venligst alle felter'))
+    redirect('/register?error=' + encodeURIComponent('Please fill in all fields'))
   }
 
   if (password.length < 6) {
-    redirect('/register?error=' + encodeURIComponent('Adgangskoden skal være mindst 6 tegn'))
+    redirect('/register?error=' + encodeURIComponent('Password must be at least 6 characters'))
   }
 
   const supabase = await createClient()
@@ -29,7 +29,7 @@ export async function register(formData: FormData) {
   if (signUpError || !signUpData.user) {
     redirect(
       '/register?error=' +
-        encodeURIComponent(signUpError?.message ?? 'Kunne ikke oprette bruger')
+        encodeURIComponent(signUpError?.message ?? 'Could not create user')
     )
   }
 
@@ -50,7 +50,7 @@ export async function register(formData: FormData) {
   if (restaurantError || !restaurant) {
     redirect(
       '/register?error=' +
-        encodeURIComponent('Kunne ikke oprette restaurant: ' + (restaurantError?.message ?? ''))
+        encodeURIComponent('Could not create restaurant: ' + (restaurantError?.message ?? ''))
     )
   }
 
@@ -63,7 +63,7 @@ export async function register(formData: FormData) {
   if (linkError) {
     redirect(
       '/register?error=' +
-        encodeURIComponent('Kunne ikke knytte bruger til restaurant')
+        encodeURIComponent('Could not link user to restaurant')
     )
   }
 

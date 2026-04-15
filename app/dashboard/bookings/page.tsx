@@ -26,7 +26,7 @@ export default async function BookingsPage() {
   }
 
   const restaurantName =
-    (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
+    (link.restaurants as { name?: string } | null)?.name ?? 'Your restaurant'
 
   const restaurantId = link.restaurant_id as string
 
@@ -51,7 +51,7 @@ export default async function BookingsPage() {
   ])
 
   if (bookingsError) {
-    throw new Error('Kunne ikke hente bookinger: ' + bookingsError.message)
+    throw new Error('Could not load bookings: ' + bookingsError.message)
   }
 
   const bookingRows: BookingRow[] = (bookings ?? []).map((b) => {
@@ -93,10 +93,10 @@ export default async function BookingsPage() {
         <div className="mt-6 flex items-end justify-between gap-4">
           <div>
             <h1 className="font-logo text-4xl tracking-tight text-[#111827]">
-              Bookinger
+              Bookings
             </h1>
             <p className="mt-2 text-sm text-[#6b7280]">
-              Oversigt og administration af alle reservationer
+              Overview and management of all reservations
             </p>
           </div>
         </div>

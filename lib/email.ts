@@ -21,9 +21,9 @@ type BookingEmailInput = {
   notes?: string | null
 }
 
-function formatDanishDate(dateKey: string): string {
+function formatLongDate(dateKey: string): string {
   const d = new Date(dateKey + 'T00:00:00')
-  return new Intl.DateTimeFormat('da-DK', {
+  return new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -54,35 +54,35 @@ export async function sendBookingConfirmation(
     return { sent: false, reason: 'no_from_email' }
   }
 
-  const date = formatDanishDate(input.bookingDate)
-  const subject = `Din booking hos ${input.restaurantName} er bekræftet`
-  const text = `Hej ${input.guestName}
+  const date = formatLongDate(input.bookingDate)
+  const subject = `Your booking at ${input.restaurantName} is confirmed`
+  const text = `Hi ${input.guestName}
 
-Vi bekræfter hermed din booking hos ${input.restaurantName}.
+We're confirming your booking at ${input.restaurantName}.
 
-Dato: ${date}
-Tid: ${input.bookingTime}
-Antal gæster: ${input.partySize}
-${input.notes ? `Noter: ${input.notes}\n` : ''}
-Vi glæder os til at se dig!
+Date: ${date}
+Time: ${input.bookingTime}
+Party size: ${input.partySize}
+${input.notes ? `Notes: ${input.notes}\n` : ''}
+We look forward to seeing you!
 
-Med venlig hilsen
+Kind regards
 ${input.restaurantName}`
 
   const html = `<!doctype html>
-<html lang="da">
+<html lang="en">
   <body style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.5">
-    <h1 style="font-size:20px;margin:0 0 16px">Din booking er bekræftet</h1>
-    <p>Hej ${escapeHtml(input.guestName)}</p>
-    <p>Vi bekræfter hermed din booking hos <strong>${escapeHtml(input.restaurantName)}</strong>.</p>
+    <h1 style="font-size:20px;margin:0 0 16px">Your booking is confirmed</h1>
+    <p>Hi ${escapeHtml(input.guestName)}</p>
+    <p>We're confirming your booking at <strong>${escapeHtml(input.restaurantName)}</strong>.</p>
     <table style="border-collapse:collapse;margin:16px 0">
-      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Dato</td><td>${escapeHtml(date)}</td></tr>
-      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Tid</td><td>${escapeHtml(input.bookingTime)}</td></tr>
-      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Antal gæster</td><td>${input.partySize}</td></tr>
-      ${input.notes ? `<tr><td style="padding:4px 16px 4px 0;color:#6b7280;vertical-align:top">Noter</td><td>${escapeHtml(input.notes)}</td></tr>` : ''}
+      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Date</td><td>${escapeHtml(date)}</td></tr>
+      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Time</td><td>${escapeHtml(input.bookingTime)}</td></tr>
+      <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Party size</td><td>${input.partySize}</td></tr>
+      ${input.notes ? `<tr><td style="padding:4px 16px 4px 0;color:#6b7280;vertical-align:top">Notes</td><td>${escapeHtml(input.notes)}</td></tr>` : ''}
     </table>
-    <p>Vi glæder os til at se dig!</p>
-    <p style="color:#6b7280;font-size:14px">Med venlig hilsen<br/>${escapeHtml(input.restaurantName)}</p>
+    <p>We look forward to seeing you!</p>
+    <p style="color:#6b7280;font-size:14px">Kind regards<br/>${escapeHtml(input.restaurantName)}</p>
   </body>
 </html>`
 
@@ -123,25 +123,25 @@ export async function sendBookingCancellation(
     return { sent: false, reason: 'no_from_email' }
   }
 
-  const date = formatDanishDate(input.bookingDate)
-  const subject = `Din booking hos ${input.restaurantName} er annulleret`
-  const text = `Hej ${input.guestName}
+  const date = formatLongDate(input.bookingDate)
+  const subject = `Your booking at ${input.restaurantName} has been cancelled`
+  const text = `Hi ${input.guestName}
 
-Vi må desværre meddele, at din booking hos ${input.restaurantName} den ${date} kl. ${input.bookingTime} er annulleret.
+We're sorry to let you know that your booking at ${input.restaurantName} on ${date} at ${input.bookingTime} has been cancelled.
 
-Har du spørgsmål, er du velkommen til at kontakte os.
+If you have any questions, please don't hesitate to contact us.
 
-Med venlig hilsen
+Kind regards
 ${input.restaurantName}`
 
   const html = `<!doctype html>
-<html lang="da">
+<html lang="en">
   <body style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.5">
-    <h1 style="font-size:20px;margin:0 0 16px">Din booking er annulleret</h1>
-    <p>Hej ${escapeHtml(input.guestName)}</p>
-    <p>Vi må desværre meddele, at din booking hos <strong>${escapeHtml(input.restaurantName)}</strong> den ${escapeHtml(date)} kl. ${escapeHtml(input.bookingTime)} er annulleret.</p>
-    <p>Har du spørgsmål, er du velkommen til at kontakte os.</p>
-    <p style="color:#6b7280;font-size:14px">Med venlig hilsen<br/>${escapeHtml(input.restaurantName)}</p>
+    <h1 style="font-size:20px;margin:0 0 16px">Your booking has been cancelled</h1>
+    <p>Hi ${escapeHtml(input.guestName)}</p>
+    <p>We're sorry to let you know that your booking at <strong>${escapeHtml(input.restaurantName)}</strong> on ${escapeHtml(date)} at ${escapeHtml(input.bookingTime)} has been cancelled.</p>
+    <p>If you have any questions, please don't hesitate to contact us.</p>
+    <p style="color:#6b7280;font-size:14px">Kind regards<br/>${escapeHtml(input.restaurantName)}</p>
   </body>
 </html>`
 

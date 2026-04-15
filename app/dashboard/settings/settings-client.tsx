@@ -109,7 +109,7 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
     startTransition(async () => {
       const result = await updateRestaurantInfo(formData)
       if (result.ok) {
-        setFeedback({ kind: 'ok', message: 'Ændringerne er gemt' })
+        setFeedback({ kind: 'ok', message: 'Changes saved' })
       } else {
         setFeedback({ kind: 'err', message: result.error })
       }
@@ -117,10 +117,10 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
   }
 
   return (
-    <SectionCard icon={Store} title="Restaurantoplysninger">
+    <SectionCard icon={Store} title="Restaurant details">
       <FeedbackBanner feedback={feedback} />
       <form action={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Navn" htmlFor="name">
+        <Field label="Name" htmlFor="name">
           <input
             id="name"
             name="name"
@@ -141,7 +141,7 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
             className={inputClass}
           />
         </Field>
-        <Field label="Adresse" htmlFor="address">
+        <Field label="Address" htmlFor="address">
           <input
             id="address"
             name="address"
@@ -150,7 +150,7 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
             className={inputClass}
           />
         </Field>
-        <Field label="Telefon" htmlFor="phone">
+        <Field label="Phone" htmlFor="phone">
           <input
             id="phone"
             name="phone"
@@ -168,7 +168,7 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
             disabled={pending}
             className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
           >
-            {pending ? 'Gemmer…' : 'Gem ændringer'}
+            {pending ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </form>
@@ -176,8 +176,8 @@ function RestaurantSection({ restaurant }: { restaurant: Restaurant }) {
   )
 }
 
-function formatDanishDate(iso: string): string {
-  return new Intl.DateTimeFormat('da-DK', {
+function formatLongDate(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -190,36 +190,36 @@ function SubscriptionSection({ restaurant }: { restaurant: Restaurant }) {
   const isPremium = tier === 'premium'
   const isActive = status === 'active'
 
-  const planLabel = isPremium ? 'Napkind Premium' : 'Gratis'
+  const planLabel = isPremium ? 'Napkind Premium' : 'Free'
 
   const statusMeta: Record<string, { label: string; className: string }> = {
     active: {
-      label: 'Aktiv',
+      label: 'Active',
       className: 'bg-[#ecfdf5] text-[#047857]',
     },
     trial: {
-      label: 'Prøveperiode',
+      label: 'Trial',
       className: 'bg-[#eff6ff] text-[#1d4ed8]',
     },
     cancelled: {
-      label: 'Opsagt',
+      label: 'Cancelled',
       className: 'bg-[#fef2f2] text-[#b91c1c]',
     },
     past_due: {
-      label: 'Forfalden',
+      label: 'Past due',
       className: 'bg-[#fffbeb] text-[#b45309]',
     },
   }
   const statusInfo =
     status && statusMeta[status]
       ? statusMeta[status]
-      : { label: status ?? 'Ukendt', className: 'bg-[#f3f4f6] text-[#6b7280]' }
+      : { label: status ?? 'Unknown', className: 'bg-[#f3f4f6] text-[#6b7280]' }
 
   return (
-    <SectionCard icon={CreditCard} title="Abonnement">
+    <SectionCard icon={CreditCard} title="Subscription">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-[#6b7280]">Nuværende plan</div>
+          <div className="text-xs font-medium text-[#6b7280]">Current plan</div>
           <div className="mt-1 flex items-center gap-2">
             <span className="text-lg font-semibold text-[#111827]">{planLabel}</span>
             <span
@@ -230,8 +230,8 @@ function SubscriptionSection({ restaurant }: { restaurant: Restaurant }) {
           </div>
           {restaurant.current_period_ends_at && (
             <div className="mt-2 text-sm text-[#6b7280]">
-              {isActive ? 'Næste betaling' : 'Udløber'}:{' '}
-              {formatDanishDate(restaurant.current_period_ends_at)}
+              {isActive ? 'Next payment' : 'Expires'}:{' '}
+              {formatLongDate(restaurant.current_period_ends_at)}
             </div>
           )}
         </div>
@@ -242,7 +242,7 @@ function SubscriptionSection({ restaurant }: { restaurant: Restaurant }) {
               href="/upgrade"
               className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
-              Opgrader
+              Upgrade
             </Link>
           )}
           <button
@@ -250,7 +250,7 @@ function SubscriptionSection({ restaurant }: { restaurant: Restaurant }) {
             disabled
             className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] cursor-not-allowed"
           >
-            Administrer abonnement — Kommer snart
+            Manage subscription — Coming soon
           </button>
         </div>
       </div>
@@ -268,18 +268,18 @@ function AccountSection({ userEmail }: { userEmail: string }) {
     const newPw = String(formData.get('new_password') ?? '')
     const confirm = String(formData.get('confirm_password') ?? '')
     if (newPw !== confirm) {
-      setPwFeedback({ kind: 'err', message: 'De to adgangskoder er ikke ens' })
+      setPwFeedback({ kind: 'err', message: 'The two passwords do not match' })
       return
     }
     if (newPw.length < 6) {
-      setPwFeedback({ kind: 'err', message: 'Adgangskoden skal være mindst 6 tegn' })
+      setPwFeedback({ kind: 'err', message: 'Password must be at least 6 characters' })
       return
     }
     setPwFeedback(null)
     startPwTransition(async () => {
       const result = await changePassword(formData)
       if (result.ok) {
-        setPwFeedback({ kind: 'ok', message: 'Adgangskoden er opdateret' })
+        setPwFeedback({ kind: 'ok', message: 'Password updated' })
       } else {
         setPwFeedback({ kind: 'err', message: result.error })
       }
@@ -288,11 +288,11 @@ function AccountSection({ userEmail }: { userEmail: string }) {
 
   const handleDelete = () => {
     const first = confirm(
-      'Er du sikker på, at du vil slette din konto? Alle data (restaurant, borde, bookinger) slettes permanent.'
+      'Are you sure you want to delete your account? All data (restaurant, tables, bookings) will be permanently deleted.'
     )
     if (!first) return
     const second = confirm(
-      'Sidste chance. Dette kan ikke fortrydes. Fortsæt med at slette?'
+      'Last chance. This cannot be undone. Continue with deletion?'
     )
     if (!second) return
 
@@ -301,16 +301,16 @@ function AccountSection({ userEmail }: { userEmail: string }) {
       try {
         await deleteAccount()
       } catch (e) {
-        setDeleteError(e instanceof Error ? e.message : 'Kunne ikke slette konto')
+        setDeleteError(e instanceof Error ? e.message : 'Could not delete account')
       }
     })
   }
 
   return (
-    <SectionCard icon={User} title="Konto">
+    <SectionCard icon={User} title="Account">
       <div className="space-y-6">
         <div>
-          <h3 className="text-sm font-semibold text-[#111827]">Skift adgangskode</h3>
+          <h3 className="text-sm font-semibold text-[#111827]">Change password</h3>
           <div className="mt-3">
             <FeedbackBanner feedback={pwFeedback} />
             <form
@@ -328,7 +328,7 @@ function AccountSection({ userEmail }: { userEmail: string }) {
                   />
                 </Field>
               </div>
-              <Field label="Ny adgangskode" htmlFor="new_password">
+              <Field label="New password" htmlFor="new_password">
                 <input
                   id="new_password"
                   name="new_password"
@@ -339,7 +339,7 @@ function AccountSection({ userEmail }: { userEmail: string }) {
                   className={inputClass}
                 />
               </Field>
-              <Field label="Bekræft adgangskode" htmlFor="confirm_password">
+              <Field label="Confirm password" htmlFor="confirm_password">
                 <input
                   id="confirm_password"
                   name="confirm_password"
@@ -356,7 +356,7 @@ function AccountSection({ userEmail }: { userEmail: string }) {
                   disabled={pwPending}
                   className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
                 >
-                  {pwPending ? 'Opdaterer…' : 'Opdater adgangskode'}
+                  {pwPending ? 'Updating…' : 'Update password'}
                 </button>
               </div>
             </form>
@@ -366,10 +366,10 @@ function AccountSection({ userEmail }: { userEmail: string }) {
         <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] p-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-[#b91c1c]">
             <AlertTriangle size={16} />
-            Farezone
+            Danger zone
           </h3>
           <p className="mt-1 text-sm text-[#b91c1c]">
-            Sletning af din konto fjerner din restaurant, alle borde og bookinger permanent. Handlingen kan ikke fortrydes.
+            Deleting your account permanently removes your restaurant, all tables, and all bookings. This action cannot be undone.
           </p>
           {deleteError && (
             <div className="mt-3 rounded border border-[#fecaca] bg-white px-3 py-2 text-sm text-[#b91c1c]">
@@ -383,7 +383,7 @@ function AccountSection({ userEmail }: { userEmail: string }) {
               disabled={deletePending}
               className="rounded-lg bg-[#b91c1c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991b1b] transition disabled:opacity-50"
             >
-              {deletePending ? 'Sletter…' : 'Slet konto'}
+              {deletePending ? 'Deleting…' : 'Delete account'}
             </button>
           </div>
         </div>

@@ -11,10 +11,10 @@ export function ErrorScreen({ reset }: { reset: () => void }) {
           <AlertTriangle size={24} />
         </div>
         <h1 className="mt-4 text-lg font-semibold text-[#111827]">
-          Noget gik galt
+          Something went wrong
         </h1>
         <p className="mt-2 text-sm text-[#6b7280]">
-          Vi kunne ikke vise denne side. Prøv at genindlæse eller gå tilbage til dashboardet.
+          We could not display this page. Try reloading or go back to the dashboard.
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <button
@@ -22,13 +22,13 @@ export function ErrorScreen({ reset }: { reset: () => void }) {
             onClick={reset}
             className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
           >
-            Prøv igen
+            Try again
           </button>
           <Link
             href="/dashboard"
             className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
           >
-            Tilbage til dashboard
+            Back to dashboard
           </Link>
         </div>
       </div>

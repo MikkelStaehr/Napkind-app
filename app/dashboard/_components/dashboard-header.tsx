@@ -24,7 +24,7 @@ export function DashboardHeader({
               type="submit"
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6b7280] hover:text-[#111827] transition"
             >
-              Log ud
+              Log out
             </button>
           </form>
         </div>

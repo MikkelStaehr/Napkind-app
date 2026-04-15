@@ -51,17 +51,17 @@ const statusMeta: Record<
   { label: string; className: string; dot: string }
 > = {
   pending: {
-    label: 'Afventer',
+    label: 'Pending',
     className: 'bg-[#fffbeb] text-[#b45309]',
     dot: 'bg-[#f59e0b]',
   },
   confirmed: {
-    label: 'Bekræftet',
+    label: 'Confirmed',
     className: 'bg-[#ecfdf5] text-[#047857]',
     dot: 'bg-[#10b981]',
   },
   cancelled: {
-    label: 'Annulleret',
+    label: 'Cancelled',
     className: 'bg-[#f3f4f6] text-[#6b7280]',
     dot: 'bg-[#9ca3af]',
   },
@@ -96,15 +96,15 @@ function matchesDateFilter(bookingDate: string, filter: DateFilter): boolean {
   return true
 }
 
-function formatDanishDate(dateStr: string): string {
+function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr)
   const today = startOfDay(new Date())
   const todayKey = toDateKey(today)
-  if (dateStr === todayKey) return 'I dag'
+  if (dateStr === todayKey) return 'Today'
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  if (dateStr === toDateKey(tomorrow)) return 'I morgen'
-  return new Intl.DateTimeFormat('da-DK', {
+  if (dateStr === toDateKey(tomorrow)) return 'Tomorrow'
+  return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -154,7 +154,7 @@ export function BookingsClient({
         await createBooking(formData)
         setCreating(false)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke oprette booking')
+        setError(e instanceof Error ? e.message : 'Could not create booking')
       }
     })
   }
@@ -166,7 +166,7 @@ export function BookingsClient({
       try {
         await updateBookingStatus(id, status)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke opdatere booking')
+        setError(e instanceof Error ? e.message : 'Could not update booking')
       } finally {
         setPendingId(null)
       }
@@ -174,14 +174,14 @@ export function BookingsClient({
   }
 
   const handleDelete = (id: string) => {
-    if (!confirm('Slet denne annullerede booking permanent?')) return
+    if (!confirm('Permanently delete this cancelled booking?')) return
     setError(null)
     setPendingId(id)
     startTransition(async () => {
       try {
         await deleteBooking(id)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke slette booking')
+        setError(e instanceof Error ? e.message : 'Could not delete booking')
       } finally {
         setPendingId(null)
       }
@@ -202,10 +202,10 @@ export function BookingsClient({
         <div className="flex flex-wrap items-center gap-2">
           <FilterPills
             options={[
-              { value: 'today', label: 'I dag' },
-              { value: 'tomorrow', label: 'I morgen' },
-              { value: 'week', label: 'Denne uge' },
-              { value: 'all', label: 'Alle' },
+              { value: 'today', label: 'Today' },
+              { value: 'tomorrow', label: 'Tomorrow' },
+              { value: 'week', label: 'This week' },
+              { value: 'all', label: 'All' },
             ]}
             value={dateFilter}
             onChange={(v) => setDateFilter(v as DateFilter)}
@@ -221,17 +221,17 @@ export function BookingsClient({
           className="inline-flex items-center gap-2 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
         >
           <Plus size={16} />
-          Ny booking
+          New booking
         </button>
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <FilterPills
           options={[
-            { value: 'all', label: 'Alle' },
-            { value: 'pending', label: 'Afventer' },
-            { value: 'confirmed', label: 'Bekræftet' },
-            { value: 'cancelled', label: 'Annulleret' },
+            { value: 'all', label: 'All' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'confirmed', label: 'Confirmed' },
+            { value: 'cancelled', label: 'Cancelled' },
           ]}
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -244,7 +244,7 @@ export function BookingsClient({
           />
           <input
             type="text"
-            placeholder="Søg navn eller telefon"
+            placeholder="Search name or phone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-[#e5e7eb] bg-white pl-9 pr-3 py-2 text-sm text-[#111827] focus:border-[#f59e0b] focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
@@ -268,8 +268,8 @@ export function BookingsClient({
         <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-white px-6 py-12 text-center">
           <p className="text-sm text-[#6b7280]">
             {dateFilter === 'today'
-              ? 'Ingen bookinger i dag'
-              : 'Ingen bookinger matcher filtrene'}
+              ? 'No bookings today'
+              : 'No bookings match the filters'}
           </p>
           {dateFilter === 'today' && !creating && (
             <button
@@ -278,7 +278,7 @@ export function BookingsClient({
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition"
             >
               <Plus size={16} />
-              Opret booking
+              Create booking
             </button>
           )}
         </div>
@@ -303,20 +303,20 @@ export function BookingsClient({
                       </span>
                       <span className="inline-flex items-center gap-1 text-xs text-[#6b7280]">
                         <Users size={12} />
-                        {b.party_size} pers.
+                        {b.party_size}p
                       </span>
                     </div>
 
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6b7280]">
                       <span className="inline-flex items-center gap-1">
                         <Clock size={12} />
-                        {formatDanishDate(b.booking_date)} ·{' '}
+                        {formatShortDate(b.booking_date)} ·{' '}
                         {formatTime(b.booking_time)}
                       </span>
                       <span>
                         {b.table_number !== null
-                          ? `Bord ${b.table_number}`
-                          : 'Intet bord'}
+                          ? `Table ${b.table_number}`
+                          : 'No table'}
                       </span>
                       {b.guest_phone && (
                         <span className="inline-flex items-center gap-1">
@@ -348,7 +348,7 @@ export function BookingsClient({
                         className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
                       >
                         <Check size={14} />
-                        Bekræft
+                        Confirm
                       </button>
                     )}
                     {b.status !== 'cancelled' && (
@@ -358,7 +358,7 @@ export function BookingsClient({
                         disabled={isPending}
                         className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#b91c1c] hover:text-[#b91c1c] transition disabled:opacity-50"
                       >
-                        Annuller
+                        Cancel
                       </button>
                     )}
                     {b.status === 'cancelled' && (
@@ -367,7 +367,7 @@ export function BookingsClient({
                         onClick={() => handleDelete(b.id)}
                         disabled={isPending}
                         className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#fef2f2] hover:text-[#b91c1c] transition disabled:opacity-50"
-                        aria-label="Slet booking"
+                        aria-label="Delete booking"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -434,19 +434,19 @@ function CreateForm({
       className="mb-6 rounded-xl border border-[#e5e7eb] bg-white p-5"
     >
       <div className="flex items-start justify-between">
-        <h2 className="text-base font-semibold text-[#111827]">Ny booking</h2>
+        <h2 className="text-base font-semibold text-[#111827]">New booking</h2>
         <button
           type="button"
           onClick={onCancel}
           className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] transition"
-          aria-label="Luk"
+          aria-label="Close"
         >
           <X size={16} />
         </button>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Gæstenavn" htmlFor="guest_name">
+        <Field label="Guest name" htmlFor="guest_name">
           <input
             id="guest_name"
             name="guest_name"
@@ -455,7 +455,7 @@ function CreateForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Antal personer" htmlFor="party_size">
+        <Field label="Party size" htmlFor="party_size">
           <input
             id="party_size"
             name="party_size"
@@ -467,7 +467,7 @@ function CreateForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Dato" htmlFor="booking_date">
+        <Field label="Date" htmlFor="booking_date">
           <input
             id="booking_date"
             name="booking_date"
@@ -477,7 +477,7 @@ function CreateForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Tid" htmlFor="booking_time">
+        <Field label="Time" htmlFor="booking_time">
           <input
             id="booking_time"
             name="booking_time"
@@ -487,22 +487,22 @@ function CreateForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Bord" htmlFor="table_id">
+        <Field label="Table" htmlFor="table_id">
           <select
             id="table_id"
             name="table_id"
             defaultValue=""
             className={inputClass}
           >
-            <option value="">Intet bord</option>
+            <option value="">No table</option>
             {tables.map((t) => (
               <option key={t.id} value={t.id}>
-                Bord {t.table_number} ({t.capacity} pladser)
+                Table {t.table_number} ({t.capacity} seats)
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Telefon" htmlFor="guest_phone">
+        <Field label="Phone" htmlFor="guest_phone">
           <input
             id="guest_phone"
             name="guest_phone"
@@ -525,7 +525,7 @@ function CreateForm({
           </Field>
         </div>
         <div className="sm:col-span-2">
-          <Field label="Noter" htmlFor="notes">
+          <Field label="Notes" htmlFor="notes">
             <textarea
               id="notes"
               name="notes"
@@ -542,14 +542,14 @@ function CreateForm({
           onClick={onCancel}
           className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:border-[#111827] transition"
         >
-          Annuller
+          Cancel
         </button>
         <button
           type="submit"
           disabled={pending}
           className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d97706] transition disabled:opacity-50"
         >
-          {pending ? 'Opretter…' : 'Opret booking'}
+          {pending ? 'Creating…' : 'Create booking'}
         </button>
       </div>
     </form>

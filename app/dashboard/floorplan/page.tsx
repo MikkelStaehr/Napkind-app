@@ -31,7 +31,7 @@ export default async function FloorplanPage() {
   }
 
   const restaurantName =
-    (link.restaurants as { name?: string } | null)?.name ?? 'Din restaurant'
+    (link.restaurants as { name?: string } | null)?.name ?? 'Your restaurant'
   const restaurantId = link.restaurant_id as string
   const today = toDateKey(new Date())
 

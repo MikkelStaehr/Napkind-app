@@ -12,7 +12,7 @@ export async function login(formData: FormData) {
   const rememberMe = formData.get('remember_me') === 'on'
 
   if (!email || !password) {
-    redirect('/login?error=' + encodeURIComponent('Udfyld venligst alle felter'))
+    redirect('/login?error=' + encodeURIComponent('Please fill in all fields'))
   }
 
   if (!rememberMe) {
@@ -32,7 +32,7 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    redirect('/login?error=' + encodeURIComponent('Forkert email eller adgangskode'))
+    redirect('/login?error=' + encodeURIComponent('Incorrect email or password'))
   }
 
   revalidatePath('/', 'layout')

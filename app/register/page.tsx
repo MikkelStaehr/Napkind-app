@@ -17,13 +17,13 @@ export default async function RegisterPage({
           </Link>
 
           <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50 p-6">
-            <h1 className="text-lg font-semibold text-neutral-900">Bekræft din email</h1>
+            <h1 className="text-lg font-semibold text-neutral-900">Confirm your email</h1>
             <p className="mt-2 text-sm text-neutral-600">
-              Vi har sendt en bekræftelses-mail til{' '}
+              We&apos;ve sent a confirmation email to{' '}
               <span className="font-medium text-neutral-900">{email}</span>.
             </p>
             <p className="mt-2 text-sm text-neutral-600">
-              Klik på linket i mailen for at aktivere din konto.
+              Click the link in the email to activate your account.
             </p>
           </div>
 
@@ -31,7 +31,7 @@ export default async function RegisterPage({
             href="/login"
             className="mt-6 inline-block text-sm font-medium text-neutral-900 hover:underline"
           >
-            Gå til login
+            Go to log in
           </Link>
         </div>
       </main>
@@ -45,7 +45,7 @@ export default async function RegisterPage({
           <Link href="/" className="font-logo text-6xl tracking-tight text-neutral-900 sm:text-7xl">
             Napkind
           </Link>
-          <p className="mt-2 text-sm text-neutral-600">Opret din restaurant</p>
+          <p className="mt-2 text-sm text-neutral-600">Create your restaurant</p>
         </div>
 
         <form action={register} className="mt-8 space-y-4">
@@ -54,7 +54,7 @@ export default async function RegisterPage({
               htmlFor="restaurantName"
               className="block text-sm font-medium text-neutral-700"
             >
-              Restaurantens navn
+              Restaurant name
             </label>
             <input
               id="restaurantName"
@@ -67,7 +67,7 @@ export default async function RegisterPage({
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
-              Din email
+              Your email
             </label>
             <input
               id="email"
@@ -81,7 +81,7 @@ export default async function RegisterPage({
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
-              Adgangskode
+              Password
             </label>
             <input
               id="password"
@@ -92,7 +92,7 @@ export default async function RegisterPage({
               autoComplete="new-password"
               className="mt-1 block w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
             />
-            <p className="mt-1 text-xs text-neutral-500">Mindst 6 tegn</p>
+            <p className="mt-1 text-xs text-neutral-500">At least 6 characters</p>
           </div>
 
           {error && (
@@ -105,14 +105,14 @@ export default async function RegisterPage({
             type="submit"
             className="w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition"
           >
-            Opret konto
+            Create account
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-neutral-600">
-          Har du allerede en konto?{' '}
+          Already have an account?{' '}
           <Link href="/login" className="font-medium text-neutral-900 hover:underline">
-            Log ind
+            Log in
           </Link>
         </p>
       </div>

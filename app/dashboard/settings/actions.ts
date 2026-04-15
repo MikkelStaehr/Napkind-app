@@ -33,7 +33,7 @@ async function requireUserAndRestaurant() {
     .maybeSingle()
 
   if (!link?.restaurant_id) {
-    throw new Error('Ingen restaurant fundet for bruger')
+    throw new Error('No restaurant found for user')
   }
 
   return { supabase, user, restaurantId: link.restaurant_id as string }
@@ -46,13 +46,13 @@ export async function updateRestaurantInfo(formData: FormData): Promise<ActionRe
   const email = String(formData.get('email') ?? '').trim()
 
   if (!name) {
-    return { ok: false, error: 'Restaurantnavn må ikke være tomt' }
+    return { ok: false, error: 'Restaurant name cannot be empty' }
   }
 
   if (email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (email.length > 254 || !emailRegex.test(email)) {
-      return { ok: false, error: 'Ugyldig email-adresse' }
+      return { ok: false, error: 'Invalid email address' }
     }
   }
 
@@ -69,7 +69,7 @@ export async function updateRestaurantInfo(formData: FormData): Promise<ActionRe
     .eq('id', restaurantId)
 
   if (error) {
-    return { ok: false, error: 'Kunne ikke gemme: ' + error.message }
+    return { ok: false, error: 'Could not save: ' + error.message }
   }
 
   revalidatePath('/dashboard/settings')
@@ -82,11 +82,11 @@ export async function changePassword(formData: FormData): Promise<ActionResult> 
   const confirmPassword = String(formData.get('confirm_password') ?? '')
 
   if (newPassword.length < 6) {
-    return { ok: false, error: 'Adgangskoden skal være mindst 6 tegn' }
+    return { ok: false, error: 'Password must be at least 6 characters' }
   }
 
   if (newPassword !== confirmPassword) {
-    return { ok: false, error: 'De to adgangskoder er ikke ens' }
+    return { ok: false, error: 'The two passwords do not match' }
   }
 
   const { supabase } = await requireUserAndRestaurant()
@@ -94,7 +94,7 @@ export async function changePassword(formData: FormData): Promise<ActionResult> 
   const { error } = await supabase.auth.updateUser({ password: newPassword })
 
   if (error) {
-    return { ok: false, error: 'Kunne ikke ændre adgangskode: ' + error.message }
+    return { ok: false, error: 'Could not change password: ' + error.message }
   }
 
   revalidatePath('/dashboard/settings')
@@ -110,7 +110,7 @@ export async function deleteAccount(): Promise<void> {
     .eq('restaurant_id', restaurantId)
 
   if (linksError) {
-    throw new Error('Kunne ikke slette bruger-tilknytninger: ' + linksError.message)
+    throw new Error('Could not delete user memberships: ' + linksError.message)
   }
 
   const { error: restaurantError } = await supabaseAdmin
@@ -119,13 +119,13 @@ export async function deleteAccount(): Promise<void> {
     .eq('id', restaurantId)
 
   if (restaurantError) {
-    throw new Error('Kunne ikke slette restaurant: ' + restaurantError.message)
+    throw new Error('Could not delete restaurant: ' + restaurantError.message)
   }
 
   const { error: userError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
   if (userError) {
-    throw new Error('Kunne ikke slette bruger: ' + userError.message)
+    throw new Error('Could not delete user: ' + userError.message)
   }
 
   await supabase.auth.signOut()

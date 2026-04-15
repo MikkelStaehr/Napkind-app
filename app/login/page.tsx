@@ -15,7 +15,7 @@ export default async function LoginPage({
           <Link href="/" className="font-logo text-6xl tracking-tight text-neutral-900 sm:text-7xl">
             Napkind
           </Link>
-          <p className="mt-2 text-sm text-neutral-600">Log ind på din konto</p>
+          <p className="mt-2 text-sm text-neutral-600">Log in to your account</p>
         </div>
 
         <form action={login} className="mt-8 space-y-4">
@@ -35,7 +35,7 @@ export default async function LoginPage({
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
-              Adgangskode
+              Password
             </label>
             <input
               id="password"
@@ -53,7 +53,7 @@ export default async function LoginPage({
               name="remember_me"
               className="h-4 w-4 rounded border-neutral-300 text-[#f59e0b] focus:ring-[#f59e0b]"
             />
-            Husk mig
+            Remember me
           </label>
 
           {error && (
@@ -66,14 +66,14 @@ export default async function LoginPage({
             type="submit"
             className="w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition"
           >
-            Log ind
+            Log in
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-neutral-600">
-          Har du ikke en konto?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="font-medium text-neutral-900 hover:underline">
-            Opret en
+            Create one
           </Link>
         </p>
       </div>
